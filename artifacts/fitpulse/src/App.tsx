@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Award,
   BarChart3,
+  Calculator,
   Check,
   CircleUserRound,
   Dumbbell,
@@ -24,12 +25,16 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-type View = 'dashboard' | 'macros' | 'workout' | 'steps';
-type Profile = { name: string; goal: string; weight: number; height: number; calorieTarget: number; stepTarget: number };
+type View = 'dashboard' | 'macros' | 'workout' | 'steps' | 'plan';
+type Profile = { name: string; goal: string; weight: number; height: number; calorieTarget: number; proteinTarget: number; carbsTarget: number; fatTarget: number; stepTarget: number };
 type MacroLog = { id: string; meal: string; calories: number; protein: number; carbs: number; fat: number; time: string };
 type WorkoutSet = { id: string; exercise: string; weight: number; reps: number; estimatedOneRm: number; date: string };
 type StepsMap = Record<string, number>;
 type MotionStatus = 'idle' | 'requesting' | 'active' | 'denied' | 'unsupported';
+type PlanGoal = 'cut' | 'maintain' | 'bulk';
+type Sex = 'female' | 'male';
+type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'high';
+type PlanResult = { calories: number; protein: number; carbs: number; fat: number; bmi: number; bmiLabel: string; goalLabel: string };
 
 const STORAGE = {
   profile: 'fitpulse-profile',
@@ -44,15 +49,25 @@ const defaultProfile: Profile = {
   weight: 68,
   height: 170,
   calorieTarget: 2200,
+  proteinTarget: 110,
+  carbsTarget: 250,
+  fatTarget: 70,
   stepTarget: 9000,
 };
 
 const mealOptions = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
+const activityMultipliers: Record<ActivityLevel, number> = {
+  sedentary: 1.2,
+  light: 1.375,
+  moderate: 1.55,
+  high: 1.725,
+};
 const navItems: { id: View; label: string; icon: LucideIcon }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
   { id: 'macros', label: 'Macros', icon: Apple },
   { id: 'workout', label: 'Workout', icon: Dumbbell },
   { id: 'steps', label: 'Steps', icon: Footprints },
+  { id: 'plan', label: 'Plan', icon: Calculator },
 ];
 
 function todayKey() {
@@ -214,6 +229,22 @@ function App() {
                 }}
               />
             )}
+            {view === 'plan' && (
+              <PlanPage
+                profile={profile}
+                onApplyPlan={(plan) => {
+                  setProfile((existing) => ({
+                    ...existing,
+                    calorieTarget: plan.calories,
+                    proteinTarget: plan.protein,
+                    carbsTarget: plan.carbs,
+                    fatTarget: plan.fat,
+                    goal: `${plan.goalLabel} focus`,
+                  }));
+                  setToast(`${plan.goalLabel} targets applied to your profile.`);
+                }}
+              />
+            )}
           </div>
         </main>
       </div>
@@ -278,7 +309,7 @@ function Dashboard({ profile, calories, protein, carbs, fat, todaySteps, workout
         <MetricCard icon={Flame} label="Calories" value={calories.toLocaleString()} suffix={`/ ${profile.calorieTarget.toLocaleString()} kcal`} note={`${calorieProgress}% of target`} />
         <MetricCard icon={Dumbbell} label="Strength work" value={String(workoutCount)} suffix="sets" note={workoutCount ? 'Good work is logged' : 'A blank slate today'} />
         <MetricCard icon={Footprints} label="Steps" value={todaySteps.toLocaleString()} suffix={`/ ${profile.stepTarget.toLocaleString()}`} note={`${Math.min(100, Math.round((todaySteps / profile.stepTarget) * 100))}% of daily goal`} />
-        <MetricCard icon={Target} label="Protein" value={`${Math.round(protein)}g`} suffix={`/ ${Math.round(profile.weight * 1.6)}g`} note="Fuel your training" />
+         <MetricCard icon={Target} label="Protein" value={`${Math.round(protein)}g`} suffix={`/ ${profile.proteinTarget}g`} note="Fuel your training" />
       </div>
       <div className="content-grid">
         <section className="panel" data-testid="card-dashboard-macros">
@@ -290,7 +321,7 @@ function Dashboard({ profile, calories, protein, carbs, fat, todaySteps, workout
             <div className="calorie-ring" style={{ '--calorie-progress': `${calorieProgress}%` } as CSSProperties}>
               <div className="calorie-ring-content"><strong data-testid="text-calorie-total">{calories.toLocaleString()}</strong><span>of {profile.calorieTarget.toLocaleString()} kcal</span></div>
             </div>
-             <MacroBars protein={protein} carbs={carbs} fat={fat} />
+             <MacroBars protein={protein} carbs={carbs} fat={fat} targets={profile} />
            </div>
          </section>
          <section className="panel" data-testid="card-recent-meals">
@@ -315,11 +346,11 @@ function MetricCard({ icon: Icon, label, value, suffix, note }: { icon: LucideIc
   );
 }
 
-function MacroBars({ protein, carbs, fat }: { protein: number; carbs: number; fat: number }) {
+function MacroBars({ protein, carbs, fat, targets }: { protein: number; carbs: number; fat: number; targets: Pick<Profile, 'proteinTarget' | 'carbsTarget' | 'fatTarget'> }) {
   const rows = [
-    { label: 'Protein', value: Math.round(protein), target: 110, className: 'bar-protein' },
-    { label: 'Carbs', value: Math.round(carbs), target: 250, className: 'bar-carbs' },
-    { label: 'Fat', value: Math.round(fat), target: 70, className: 'bar-fat' },
+    { label: 'Protein', value: Math.round(protein), target: targets.proteinTarget, className: 'bar-protein' },
+    { label: 'Carbs', value: Math.round(carbs), target: targets.carbsTarget, className: 'bar-carbs' },
+    { label: 'Fat', value: Math.round(fat), target: targets.fatTarget, className: 'bar-fat' },
   ];
   return <div className="macro-bars">{rows.map((row) => <div key={row.label}><div className="macro-bar-top"><span>{row.label}</span><strong>{row.value}g <span>/ {row.target}g</span></strong></div><div className="bar-track"><div className={`bar-fill ${row.className}`} style={{ width: `${Math.min(100, (row.value / row.target) * 100)}%` }} /></div></div>)}</div>;
 }
@@ -368,7 +399,7 @@ function MacrosPage({ profile, logs, onAdd, onDelete }: { profile: Profile; logs
         </section>
         <section className="panel">
           <div className="panel-header"><div><h3>Today’s totals</h3><p>{logs.length ? 'A quick read of your fuel.' : 'Ready when you are.'}</p></div><div className="section-label">{Math.min(100, Math.round((calories / profile.calorieTarget) * 100))}% target</div></div>
-          <div className="macro-summary"><div className="calorie-ring" style={{ '--calorie-progress': `${Math.min(100, (calories / profile.calorieTarget) * 100)}%` } as CSSProperties}><div className="calorie-ring-content"><strong>{calories.toLocaleString()}</strong><span>kcal in</span></div></div><MacroBars protein={protein} carbs={carbs} fat={fat} /></div>
+           <div className="macro-summary"><div className="calorie-ring" style={{ '--calorie-progress': `${Math.min(100, (calories / profile.calorieTarget) * 100)}%` } as CSSProperties}><div className="calorie-ring-content"><strong>{calories.toLocaleString()}</strong><span>kcal in</span></div></div><MacroBars protein={protein} carbs={carbs} fat={fat} targets={profile} /></div>
         </section>
       </div>
       <section className="panel" style={{ marginTop: 22 }}><div className="panel-header"><div><h3>Today’s meals</h3><p>Tap the bin if something needs correcting.</p></div><div className="section-label">{logs.length} {logs.length === 1 ? 'entry' : 'entries'}</div></div>{logs.length ? <div className="log-list">{logs.map((meal) => <MealRow key={meal.id} meal={meal} onDelete={onDelete} />)}</div> : <EmptyState icon={Utensils} title="Your meal log is clear" text="Start with whatever is in front of you. The useful habit is noticing." />}</section>
@@ -642,6 +673,129 @@ function StepsPage({
   );
 }
 
+function PlanPage({ profile, onApplyPlan }: { profile: Profile; onApplyPlan: (plan: PlanResult) => void }) {
+  const [form, setForm] = useState({
+    weight: String(profile.weight),
+    height: String(profile.height || 170),
+    age: '28',
+    sex: 'female' as Sex,
+    activity: 'moderate' as ActivityLevel,
+    goal: 'maintain' as PlanGoal,
+  });
+
+  const weight = Math.max(1, numberValue(form.weight));
+  const height = Math.max(100, numberValue(form.height) || 170);
+  const age = Math.min(90, Math.max(14, numberValue(form.age) || 28));
+  const heightMeters = height / 100;
+  const bmi = weight / (heightMeters * heightMeters);
+  const bmiLabel = bmi < 18.5 ? 'Below healthy range' : bmi < 25 ? 'Healthy range' : bmi < 30 ? 'Above healthy range' : 'High range';
+  const bmr = form.sex === 'female' ? (10 * weight) + (6.25 * height) - (5 * age) - 161 : (10 * weight) + (6.25 * height) - (5 * age) + 5;
+  const maintenanceCalories = Math.round(bmr * activityMultipliers[form.activity]);
+  const goalAdjustment = form.goal === 'cut' ? -400 : form.goal === 'bulk' ? 300 : 0;
+  const calories = Math.max(1200, maintenanceCalories + goalAdjustment);
+  const protein = Math.round(weight * (form.goal === 'cut' ? 2.2 : form.goal === 'bulk' ? 1.8 : 2));
+  const fat = Math.round((calories * 0.25) / 9);
+  const carbs = Math.max(0, Math.round((calories - (protein * 4) - (fat * 9)) / 4));
+  const goalLabel = form.goal === 'cut' ? 'Cut' : form.goal === 'bulk' ? 'Bulk' : 'Maintain';
+  const plan: PlanResult = { calories, protein, carbs, fat, bmi, bmiLabel, goalLabel };
+
+  return (
+    <>
+      <header className="page-header">
+        <div>
+          <div className="eyebrow">Planning desk · Personal targets</div>
+          <h1>Know what to aim for.</h1>
+          <p>Use your body, activity, and goal to create a starting point you can actually follow.</p>
+        </div>
+        <div className="header-date"><strong>{goalLabel} plan</strong>{calories.toLocaleString()} kcal starting target</div>
+      </header>
+      <div className="planner-grid">
+        <section className="panel">
+          <div className="panel-header">
+            <div><h3>Your inputs</h3><p>Change any number and the plan updates instantly.</p></div>
+            <Calculator size={20} color="hsl(var(--primary))" />
+          </div>
+          <div className="form-grid">
+            <Field id="plan-weight" label="Body weight" suffix="kg" value={form.weight} onChange={(value) => setForm({ ...form, weight: value })} placeholder="68" />
+            <Field id="plan-height" label="Height" suffix="cm" value={form.height} onChange={(value) => setForm({ ...form, height: value })} placeholder="170" />
+            <Field id="plan-age" label="Age" suffix="years" value={form.age} onChange={(value) => setForm({ ...form, age: value })} placeholder="28" />
+            <div className="field">
+              <label htmlFor="plan-sex">Calculation profile</label>
+              <select id="plan-sex" value={form.sex} onChange={(event) => setForm({ ...form, sex: event.target.value as Sex })} data-testid="select-plan-sex">
+                <option value="female">Female</option>
+                <option value="male">Male</option>
+              </select>
+            </div>
+            <div className="field full">
+              <label htmlFor="plan-activity">Typical activity</label>
+              <select id="plan-activity" value={form.activity} onChange={(event) => setForm({ ...form, activity: event.target.value as ActivityLevel })} data-testid="select-plan-activity">
+                <option value="sedentary">Sedentary — mostly sitting</option>
+                <option value="light">Light — 1–3 active days/week</option>
+                <option value="moderate">Moderate — 3–5 active days/week</option>
+                <option value="high">High — hard training most days</option>
+              </select>
+            </div>
+          </div>
+          <div className="goal-picker">
+            <div className="section-label">Current goal</div>
+            <div className="goal-options">
+              {(['cut', 'maintain', 'bulk'] as PlanGoal[]).map((goal) => (
+                <button
+                  key={goal}
+                  type="button"
+                  className={`goal-option${form.goal === goal ? ' active' : ''}`}
+                  onClick={() => setForm({ ...form, goal })}
+                  data-testid={`button-goal-${goal}`}
+                >
+                  <strong>{goal === 'cut' ? 'Cut' : goal === 'bulk' ? 'Bulk' : 'Maintain'}</strong>
+                  <span>{goal === 'cut' ? 'Lose fat' : goal === 'bulk' ? 'Build size' : 'Stay steady'}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="helper-note" style={{ marginTop: 20 }}>
+            <Info size={16} />
+            <span>This is a planning estimate, not medical advice. Track how you feel and adjust over time.</span>
+          </div>
+        </section>
+        <section className="panel">
+          <div className="panel-header">
+            <div><h3>Your starting targets</h3><p>Built from your current inputs.</p></div>
+            <Target size={20} color="hsl(var(--secondary-foreground))" />
+          </div>
+          <div className="plan-calorie-result">
+            <span className="section-label">{goalLabel} calories</span>
+            <strong data-testid="text-plan-calories">{calories.toLocaleString()} <small>kcal/day</small></strong>
+            <span className="plan-calorie-detail">Maintenance estimate: {maintenanceCalories.toLocaleString()} kcal</span>
+          </div>
+          <div className="macro-target-list">
+            <div><span className="macro-swatch bar-protein" /> <span>Protein</span><strong data-testid="text-plan-protein">{protein}g</strong></div>
+            <div><span className="macro-swatch bar-carbs" /> <span>Carbs</span><strong data-testid="text-plan-carbs">{carbs}g</strong></div>
+            <div><span className="macro-swatch bar-fat" /> <span>Fat</span><strong data-testid="text-plan-fat">{fat}g</strong></div>
+          </div>
+          <button className="button-primary apply-plan-button" onClick={() => onApplyPlan(plan)} data-testid="button-apply-plan"><Check size={15} /> Apply these targets</button>
+        </section>
+      </div>
+      <section className="panel bmi-panel" style={{ marginTop: 22 }}>
+        <div className="panel-header">
+          <div><h3>BMI calculator</h3><p>A quick height-to-weight screening number, shown with context.</p></div>
+          <Activity size={20} color="hsl(var(--primary))" />
+        </div>
+        <div className="bmi-result-row">
+          <div className="bmi-score" data-testid="text-bmi-score">{bmi.toFixed(1)}</div>
+          <div><strong>{bmiLabel}</strong><p>BMI is one signal, not a complete picture of health or athleticism.</p></div>
+        </div>
+        <div className="bmi-scale" aria-label="BMI ranges">
+          <span className="bmi-under">Below 18.5</span>
+          <span className="bmi-healthy">18.5–24.9</span>
+          <span className="bmi-over">25–29.9</span>
+          <span className="bmi-high">30+</span>
+        </div>
+      </section>
+    </>
+  );
+}
+
 function ProfileModal({ profile, onClose, onSave }: { profile: Profile; onClose: () => void; onSave: (profile: Profile) => void }) {
   const [form, setForm] = useState({
     name: profile.name,
@@ -660,7 +814,17 @@ function ProfileModal({ profile, onClose, onSave }: { profile: Profile; onClose:
     const stepTarget = numberValue(form.stepTarget);
     if (!form.name.trim()) { setError('Add your name so the ritual feels like yours.'); return; }
     if (weight <= 0 || height < 100 || height > 230 || calorieTarget < 1000 || stepTarget < 1000) { setError('Check your profile numbers — height should be 100–230 cm and targets should be realistic.'); return; }
-    onSave({ name: form.name.trim(), goal: form.goal.trim() || 'Build consistency', weight, height, calorieTarget, stepTarget });
+    onSave({
+      name: form.name.trim(),
+      goal: form.goal.trim() || 'Build consistency',
+      weight,
+      height,
+      calorieTarget,
+      proteinTarget: profile.proteinTarget,
+      carbsTarget: profile.carbsTarget,
+      fatTarget: profile.fatTarget,
+      stepTarget,
+    });
   };
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>

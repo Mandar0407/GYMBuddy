@@ -200,6 +200,7 @@
 .metric-card strong span { font: 500 12px var(--app-font-sans); letter-spacing: 0; color: hsl(var(--muted-foreground)); }
 .metric-card small { display: block; margin-top: 8px; color: hsl(var(--muted-foreground)); font-size: 11px; }
 .content-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(290px, .75fr); gap: 22px; }
+.planner-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, .9fr); gap: 22px; align-items: start; }
 .panel { background: hsl(var(--card)); border: 1px solid hsl(var(--card-border)); border-radius: 19px; padding: 22px; box-shadow: var(--shadow-card); }
 .panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
 .panel-header h3 { font: 600 20px/1.1 var(--app-font-serif); letter-spacing: -.035em; margin: 0; }
@@ -220,6 +221,34 @@
 .bar-protein { background: hsl(var(--secondary-foreground)); }
 .bar-carbs { background: hsl(var(--accent)); }
 .bar-fat { background: hsl(var(--primary)); }
+.goal-picker { margin-top: 24px; }
+.goal-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.goal-option { display: grid; gap: 5px; text-align: left; padding: 13px; border: 1px solid hsl(var(--border)); border-radius: 12px; background: hsl(var(--background)); color: hsl(var(--foreground)); transition: border-color .2s, background-color .2s, transform .2s; }
+.goal-option:hover { transform: translateY(-1px); border-color: hsl(var(--primary) / .55); }
+.goal-option.active { background: hsl(var(--accent) / .22); border-color: hsl(var(--primary)); box-shadow: inset 0 0 0 1px hsl(var(--primary) / .15); }
+.goal-option strong { font-size: 13px; }
+.goal-option span { color: hsl(var(--muted-foreground)); font-size: 11px; }
+.plan-calorie-result { padding: 17px; border-radius: 14px; background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.plan-calorie-result .section-label { color: hsl(var(--accent)); }
+.plan-calorie-result strong { display: block; margin-top: 8px; font: 600 38px/1 var(--app-font-serif); letter-spacing: -.05em; }
+.plan-calorie-result small { font: 500 12px var(--app-font-sans); letter-spacing: 0; color: rgba(247,243,234,.62); }
+.plan-calorie-detail { display: block; margin-top: 8px; color: rgba(247,243,234,.62); font-size: 11px; }
+.macro-target-list { display: grid; gap: 13px; margin: 22px 0; }
+.macro-target-list > div { display: flex; align-items: center; gap: 9px; font-size: 13px; }
+.macro-target-list strong { margin-left: auto; font: 600 18px var(--app-font-serif); }
+.macro-swatch { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.apply-plan-button { width: 100%; }
+.bmi-panel { overflow: hidden; }
+.bmi-result-row { display: flex; align-items: center; gap: 18px; }
+.bmi-score { width: 96px; height: 96px; display: grid; place-items: center; flex-shrink: 0; border-radius: 50%; background: hsl(var(--accent) / .35); color: hsl(var(--foreground)); font: 600 30px var(--app-font-serif); }
+.bmi-result-row strong { font: 600 16px var(--app-font-serif); }
+.bmi-result-row p { max-width: 520px; margin: 6px 0 0; color: hsl(var(--muted-foreground)); font-size: 12px; }
+.bmi-scale { display: grid; grid-template-columns: 1fr 1.5fr 1fr .7fr; gap: 5px; margin-top: 22px; }
+.bmi-scale span { padding: 8px 7px; border-radius: 6px; color: hsl(var(--foreground)); font-size: 10px; text-align: center; }
+.bmi-under { background: hsl(var(--secondary)); }
+.bmi-healthy { background: hsl(var(--accent) / .65); }
+.bmi-over { background: hsl(var(--primary) / .5); }
+.bmi-high { background: hsl(var(--destructive) / .35); }
 
 .empty-state { min-height: 166px; display: grid; place-items: center; text-align: center; padding: 18px; border: 1px dashed hsl(var(--border)); border-radius: 13px; }
 .empty-state svg { color: hsl(var(--primary)); margin: 0 auto 9px; }
@@ -308,7 +337,7 @@
 @media (max-width: 900px) {
   .sidebar { width: 210px; }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .content-grid, .workout-layout { grid-template-columns: 1fr; }
+  .content-grid, .workout-layout, .planner-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 680px) {
   .fitpulse-shell { display: block; }
@@ -328,6 +357,8 @@
   .hero-streak { top: 24px; right: 24px; }
   .hero-streak strong { font-size: 30px; }
   .content-grid, .macro-summary, .steps-hero { grid-template-columns: 1fr; }
+  .goal-options { grid-template-columns: 1fr; }
+  .bmi-result-row { align-items: flex-start; }
   .motion-panel { align-items: flex-start; flex-direction: column; }
   .motion-panel .button-primary, .motion-panel .button-danger { width: 100%; }
   .metric-grid { gap: 9px; }
