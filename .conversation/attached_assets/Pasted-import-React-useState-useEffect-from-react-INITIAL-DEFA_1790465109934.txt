@@ -1,0 +1,494 @@
+import React, { useState, useEffect } from "react";
+
+// --- INITIAL DEFAULT DATA ---
+const DEFAULT_USER = {
+  name: "Athlete",
+  weightKg: 75,
+  targetCalories: 2200,
+  targetProtein: 160,
+  targetCarbs: 220,
+  targetFat: 70,
+  targetSteps: 10000,
+};
+
+const DEFAULT_EXERCISES = [
+  "Bench Press",
+  "Barbell Squat",
+  "Deadlift",
+  "Overhead Press",
+  "Incline Dumbbell Press",
+  "Lat Pulldown",
+  "Barbell Curl",
+  "Tricep Pushdown",
+];
+
+export default function App() {
+  // --- STATE MANAGEMENT WITH LOCAL STORAGE PERSISTENCE ---
+  const [activeTab, setActiveTab] = useState("dashboard");
+
+  // User Profile
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem("fit_user");
+    return saved ? JSON.parse(saved) : DEFAULT_USER;
+  });
+
+  // Today's Macro Logs
+  const [macroLogs, setMacroLogs] = useState(() => {
+    const saved = localStorage.getItem("fit_macro_logs");
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Workout Log Sessions & PRs
+  const [workouts, setWorkouts] = useState(() => {
+    const saved = localStorage.getItem("fit_workouts");
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [prs, setPrs] = useState(() => {
+    const saved = localStorage.getItem("fit_prs");
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // Steps Counter
+  const [steps, setSteps] = useState(() => {
+    const saved = localStorage.getItem("fit_steps");
+    return saved ? Number(saved) : 6420;
+  });
+
+  // Form Inputs
+  const [foodName, setFoodName] = useState("");
+  const [protein, setProtein] = useState("");
+  const [carbs, setCarbs] = useState("");
+  const [fat, setFat] = useState("");
+  const [calories, setCalories] = useState("");
+
+  const [selectedExercise, setSelectedExercise] = useState(DEFAULT_EXERCISES[0]);
+  const [weight, setWeight] = useState("");
+  const [reps, setReps] = useState("");
+  const [prAlert, setPrAlert] = useState(null);
+
+  // Sync with LocalStorage
+  useEffect(() => localStorage.setItem("fit_user", JSON.stringify(user)), [user]);
+  useEffect(() => localStorage.setItem("fit_macro_logs", JSON.stringify(macroLogs)), [macroLogs]);
+  useEffect(() => localStorage.setItem("fit_workouts", JSON.stringify(workouts)), [workouts]);
+  useEffect(() => localStorage.setItem("fit_prs", JSON.stringify(prs)), [prs]);
+  useEffect(() => localStorage.setItem("fit_steps", steps.toString()), [steps]);
+
+  // --- MACRO CALCULATIONS ---
+  const totals = macroLogs.reduce(
+    (acc, item) => ({
+      calories: acc.calories + Number(item.calories),
+      protein: acc.protein + Number(item.protein),
+      carbs: acc.carbs + Number(item.carbs),
+      fat: acc.fat + Number(item.fat),
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 }
+  );
+
+  const handleAddMacro = (e) => {
+    e.preventDefault();
+    if (!foodName || !calories) return;
+
+    const newLog = {
+      id: Date.now(),
+      name: foodName,
+      protein: Number(protein) || 0,
+      carbs: Number(carbs) || 0,
+      fat: Number(fat) || 0,
+      calories: Number(calories) || 0,
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    setMacroLogs([newLog, ...macroLogs]);
+    setFoodName("");
+    setProtein("");
+    setCarbs("");
+    setFat("");
+    setCalories("");
+  };
+
+  // --- WORKOUT & PR LOGGING ENGINE ---
+  const handleLogSet = (e) => {
+    e.preventDefault();
+    if (!weight || !reps) return;
+
+    const w = Number(weight);
+    const r = Number(reps);
+    const est1RM = Math.round(w * (1 + r / 30));
+
+    let isNewPR = false;
+    const currentPR = prs[selectedExercise] || 0;
+
+    if (w > currentPR) {
+      isNewPR = true;
+      setPrs({ ...prs, [selectedExercise]: w });
+      setPrAlert(`🎉 NEW PERSONAL RECORD! ${selectedExercise}: ${w} kg`);
+      setTimeout(() => setPrAlert(null), 4000);
+    }
+
+    const newSet = {
+      id: Date.now(),
+      exercise: selectedExercise,
+      weight: w,
+      reps: r,
+      est1RM,
+      isPR: isNewPR,
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    setWorkouts([newSet, ...workouts]);
+    setWeight("");
+    setReps("");
+  };
+
+  return (
+    <div style={styles.container}>
+      {/* HEADER */}
+      <header style={styles.header}>
+        <h1 style={styles.appTitle}>⚡ FITPULSE MVP</h1>
+        <div style={styles.userBadge}>👤 {user.name} ({user.weightKg} kg)</div>
+      </header>
+
+      {/* PR CELEBRATION NOTIFICATION */}
+      {prAlert && <div style={styles.prBanner}>{prAlert}</div>}
+
+      {/* NAVIGATION TABS */}
+      <nav style={styles.nav}>
+        {["dashboard", "macros", "workout", "steps"].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              ...styles.navButton,
+              ...(activeTab === tab ? styles.navButtonActive : {}),
+            }}
+          >
+            {tab.toUpperCase()}
+          </button>
+        ))}
+      </nav>
+
+      {/* DASHBOARD TAB */}
+      {activeTab === "dashboard" && (
+        <main style={styles.main}>
+          <h2 style={styles.sectionTitle}>Daily Overview</h2>
+
+          <div style={styles.grid}>
+            {/* Macro Summary Card */}
+            <div style={styles.card}>
+              <h3>🔥 Calories & Macros</h3>
+              <p style={styles.statLarge}>
+                {totals.calories} / {user.targetCalories} <span style={styles.unit}>kcal</span>
+              </p>
+              <div style={styles.macroRow}>
+                <div>🥩 <b>P:</b> {totals.protein}/{user.targetProtein}g</div>
+                <div>🍞 <b>C:</b> {totals.carbs}/{user.targetCarbs}g</div>
+                <div>🥑 <b>F:</b> {totals.fat}/{user.targetFat}g</div>
+              </div>
+            </div>
+
+            {/* Step Summary Card */}
+            <div style={styles.card}>
+              <h3>👟 Steps Tracker</h3>
+              <p style={styles.statLarge}>
+                {steps.toLocaleString()} / {user.targetSteps.toLocaleString()}
+              </p>
+              <div style={styles.progressBarBg}>
+                <div
+                  style={{
+                    ...styles.progressBarFill,
+                    width: `${Math.min(100, (steps / user.targetSteps) * 100)}%`,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Stats Grid */}
+          <div style={styles.card}>
+            <h3>🏋️ Today's Training Volume</h3>
+            <p style={styles.statLarge}>
+              {workouts.reduce((acc, curr) => acc + curr.weight * curr.reps, 0)} <span style={styles.unit}>kg lifted</span>
+            </p>
+            <p style={{ color: "#888" }}>Logged sets today: {workouts.length}</p>
+          </div>
+        </main>
+      )}
+
+      {/* MACROS TAB */}
+      {activeTab === "macros" && (
+        <main style={styles.main}>
+          <h2 style={styles.sectionTitle}>Macro Logger</h2>
+
+          <form onSubmit={handleAddMacro} style={styles.formCard}>
+            <h3>+ Log Meal / Food Item</h3>
+            <input
+              type="text"
+              placeholder="Food Name (e.g. Oatmeal & Banana)"
+              value={foodName}
+              onChange={(e) => setFoodName(e.target.value)}
+              style={styles.input}
+              required
+            />
+            <div style={styles.formRow}>
+              <input
+                type="number"
+                placeholder="Calories"
+                value={calories}
+                onChange={(e) => setCalories(e.target.value)}
+                style={styles.input}
+                required
+              />
+              <input
+                type="number"
+                placeholder="Protein (g)"
+                value={protein}
+                onChange={(e) => setProtein(e.target.value)}
+                style={styles.input}
+              />
+            </div>
+            <div style={styles.formRow}>
+              <input
+                type="number"
+                placeholder="Carbs (g)"
+                value={carbs}
+                onChange={(e) => setCarbs(e.target.value)}
+                style={styles.input}
+              />
+              <input
+                type="number"
+                placeholder="Fat (g)"
+                value={fat}
+                onChange={(e) => setFat(e.target.value)}
+                style={styles.input}
+              />
+            </div>
+            <button type="submit" style={styles.submitBtn}>Add to Daily Log</button>
+          </form>
+
+          <h3>Today's Food Log</h3>
+          <div style={styles.list}>
+            {macroLogs.length === 0 ? (
+              <p style={{ color: "#777" }}>No meals logged today yet.</p>
+            ) : (
+              macroLogs.map((item) => (
+                <div key={item.id} style={styles.listItem}>
+                  <div>
+                    <b>{item.name}</b>
+                    <div style={{ fontSize: "12px", color: "#888" }}>
+                      P: {item.protein}g | C: {item.carbs}g | F: {item.fat}g
+                    </div>
+                  </div>
+                  <div>
+                    <b>{item.calories} kcal</b>
+                    <span style={{ fontSize: "11px", color: "#666", marginLeft: "10px" }}>{item.time}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </main>
+      )}
+
+      {/* WORKOUT TAB */}
+      {activeTab === "workout" && (
+        <main style={styles.main}>
+          <h2 style={styles.sectionTitle}>Workout Log Book & PR Engine</h2>
+
+          <form onSubmit={handleLogSet} style={styles.formCard}>
+            <h3>+ Log Exercise Set</h3>
+            <select
+              value={selectedExercise}
+              onChange={(e) => setSelectedExercise(e.target.value)}
+              style={styles.input}
+            >
+              {DEFAULT_EXERCISES.map((ex) => (
+                <option key={ex} value={ex}>{ex}</option>
+              ))}
+            </select>
+            <div style={styles.formRow}>
+              <input
+                type="number"
+                placeholder="Weight (kg)"
+                value={weight}
+                onChange={(e) => setWeight(e.target.value)}
+                style={styles.input}
+                required
+              />
+              <input
+                type="number"
+                placeholder="Reps"
+                value={reps}
+                onChange={(e) => setReps(e.target.value)}
+                style={styles.input}
+                required
+              />
+            </div>
+            <button type="submit" style={styles.submitBtn}>Log Completed Set</button>
+          </form>
+
+          <h3>Logged Sets & PRs</h3>
+          <div style={styles.list}>
+            {workouts.length === 0 ? (
+              <p style={{ color: "#777" }}>No sets logged today.</p>
+            ) : (
+              workouts.map((set) => (
+                <div key={set.id} style={styles.listItem}>
+                  <div>
+                    <b>{set.exercise}</b> {set.isPR && <span style={styles.prTag}>PR</span>}
+                    <div style={{ fontSize: "12px", color: "#888" }}>
+                      {set.weight} kg × {set.reps} reps (Est 1RM: {set.est1RM} kg)
+                    </div>
+                  </div>
+                  <span style={{ fontSize: "12px", color: "#666" }}>{set.time}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </main>
+      )}
+
+      {/* STEPS TAB */}
+      {activeTab === "steps" && (
+        <main style={styles.main}>
+          <h2 style={styles.sectionTitle}>Step Counter</h2>
+          <div style={styles.card}>
+            <h3>Current Steps Today</h3>
+            <p style={styles.statLarge}>{steps.toLocaleString()}</p>
+            <div style={{ display: "flex", gap: "10px", marginTop: "15px" }}>
+              <button
+                onClick={() => setSteps((prev) => prev + 500)}
+                style={styles.actionBtn}
+              >
+                +500 Manual Steps
+              </button>
+              <button
+                onClick={() => setSteps((prev) => prev + 1000)}
+                style={styles.actionBtn}
+              >
+                +1,000 Manual Steps
+              </button>
+              <button
+                onClick={() => setSteps(0)}
+                style={{ ...styles.actionBtn, backgroundColor: "#333" }}
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        </main>
+      )}
+    </div>
+  );
+}
+
+// --- MINIMAL DARK-MODE UI STYLES ---
+const styles = {
+  container: {
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    backgroundColor: "#121212",
+    color: "#ffffff",
+    minHeight: "100vh",
+    padding: "20px",
+    maxWidth: "600px",
+    margin: "0 auto",
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingBottom: "15px",
+    borderBottom: "1px solid #222",
+  },
+  appTitle: { fontSize: "20px", margin: 0, color: "#00E676" },
+  userBadge: { fontSize: "12px", background: "#222", padding: "6px 12px", borderRadius: "15px" },
+  prBanner: {
+    backgroundColor: "#FFD700",
+    color: "#000",
+    fontWeight: "bold",
+    textAlign: "center",
+    padding: "10px",
+    borderRadius: "8px",
+    margin: "15px 0",
+  },
+  nav: { display: "flex", gap: "8px", margin: "20px 0" },
+  navButton: {
+    flex: 1,
+    padding: "10px 0",
+    backgroundColor: "#1E1E1E",
+    color: "#888",
+    border: "none",
+    borderRadius: "8px",
+    cursor: "pointer",
+    fontSize: "11px",
+    fontWeight: "bold",
+  },
+  navButtonActive: { backgroundColor: "#00E676", color: "#000" },
+  main: { display: "flex", flexDirection: "column", gap: "15px" },
+  sectionTitle: { fontSize: "18px", margin: "0 0 10px 0" },
+  grid: { display: "flex", flexDirection: "column", gap: "15px" },
+  card: {
+    backgroundColor: "#1E1E1E",
+    padding: "18px",
+    borderRadius: "12px",
+    border: "1px solid #2A2A2A",
+  },
+  statLarge: { fontSize: "28px", fontWeight: "bold", margin: "10px 0" },
+  unit: { fontSize: "14px", color: "#888", fontWeight: "normal" },
+  macroRow: { display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#ccc" },
+  progressBarBg: { backgroundColor: "#333", height: "8px", borderRadius: "4px", overflow: "hidden" },
+  progressBarFill: { backgroundColor: "#00E676", height: "100%", transition: "width 0.3s ease" },
+  formCard: {
+    backgroundColor: "#1E1E1E",
+    padding: "18px",
+    borderRadius: "12px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
+  },
+  formRow: { display: "flex", gap: "10px" },
+  input: {
+    flex: 1,
+    padding: "12px",
+    backgroundColor: "#121212",
+    border: "1px solid #333",
+    color: "#fff",
+    borderRadius: "6px",
+    fontSize: "14px",
+  },
+  submitBtn: {
+    padding: "12px",
+    backgroundColor: "#00E676",
+    color: "#000",
+    fontWeight: "bold",
+    border: "none",
+    borderRadius: "6px",
+    cursor: "pointer",
+  },
+  list: { display: "flex", flexDirection: "column", gap: "8px" },
+  listItem: {
+    backgroundColor: "#1E1E1E",
+    padding: "12px",
+    borderRadius: "8px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  prTag: {
+    backgroundColor: "#FFD700",
+    color: "#000",
+    fontSize: "10px",
+    fontWeight: "bold",
+    padding: "2px 6px",
+    borderRadius: "4px",
+    marginLeft: "6px",
+  },
+  actionBtn: {
+    padding: "10px 14px",
+    backgroundColor: "#222",
+    color: "#00E676",
+    border: "1px solid #00E676",
+    borderRadius: "6px",
+    cursor: "pointer",
+  },
+};

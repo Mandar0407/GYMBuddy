@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "FitPulse Fitness Tracker"
+description = "A personal fitness companion for tracking daily nutrition, strength training, personal records, and steps with a fast, motivating dashboard."
+version = "1.0.0"
+id = "artifacts/fitpulse"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24816
+
+[services.development]
+run = "pnpm --filter @workspace/fitpulse run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/fitpulse", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/fitpulse/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24816"
+BASE_PATH = "/"
