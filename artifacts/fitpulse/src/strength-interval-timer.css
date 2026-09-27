@@ -100,6 +100,7 @@
 .sit-overlay-actions .sit-action-main { min-width: 145px; border-color: var(--sit-phase); color: #fffaf2; background: var(--sit-phase); }
 .sit-overlay-actions .sit-action-main:hover { background: var(--sit-phase-deep); }
 .sit-overlay-foot { width: min(100%, 720px); margin: 12px auto 0; padding-top: 14px; border-top: 1px solid #e4dbce; color: #948a7e; text-align: center; font-size: 10px; }
+.sit-overlay :is(button, input, select, textarea, a) { transition: all .25s ease-in-out; }
 @keyframes sit-arrive { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 420px) {
   .sit-card { padding: 19px; }

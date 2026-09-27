@@ -512,3 +512,109 @@
 }
 .fp-premium .fp-dialog-backdrop { z-index: 200; }
 .fp-premium .fp-toast { z-index: 220; }
+
+/* Shared motion: interactions stay soft, while navigation and data appear in order. */
+#root :is(button, input, select, textarea, a, .panel, .metric-card, .water-widget,
+  .movement-stat, .hero-card, .pr-banner, .goal-option, .fp-panel, .fp-stat,
+  .fp-coach-card, .fp-strength-card, .sit-card, .sit-preset, .sit-custom-item),
+.sit-overlay :is(button, input, select, textarea, a) {
+  transition: all 0.25s ease-in-out;
+}
+
+@keyframes fp-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+#root .fp-page > :not([hidden]) {
+  animation: fp-fade-up .45s ease-out backwards;
+}
+#root .fp-stat-strip > .fp-stat,
+#root .fp-dashboard-grid > .fp-panel,
+#root .fp-macro-list > .fp-macro-line,
+#root .macro-bars > .macro-meter {
+  animation: fp-fade-up .42s ease-out backwards;
+}
+#root .fp-stat-strip > .fp-stat:nth-child(1) { animation-delay: .16s; }
+#root .fp-stat-strip > .fp-stat:nth-child(2) { animation-delay: .26s; }
+#root .fp-stat-strip > .fp-stat:nth-child(3) { animation-delay: .36s; }
+#root .fp-dashboard-grid > .fp-panel:nth-child(1) { animation-delay: .42s; }
+#root .fp-dashboard-grid > .fp-panel:nth-child(2) { animation-delay: .54s; }
+#root .fp-macro-list > .fp-macro-line:nth-child(1),
+#root .macro-bars > .macro-meter:nth-child(1) { animation-delay: .56s; }
+#root .fp-macro-list > .fp-macro-line:nth-child(2),
+#root .macro-bars > .macro-meter:nth-child(2) { animation-delay: .64s; }
+#root .fp-macro-list > .fp-macro-line:nth-child(3),
+#root .macro-bars > .macro-meter:nth-child(3) { animation-delay: .72s; }
+
+#root :is(.button-primary, .fp-submit-meal, .fp-remaining > button, .sit-start):hover {
+  transform: translateY(-2px);
+  filter: brightness(1.045);
+  box-shadow: 0 9px 20px rgba(161, 57, 29, .18);
+}
+#root :is(.button-primary, .fp-submit-meal, .fp-remaining > button, .sit-start):active {
+  transform: translateY(1px) scale(.985);
+  filter: brightness(.97);
+  box-shadow: 0 3px 8px rgba(161, 57, 29, .12);
+}
+#root :is(.water-quick-add button, .sit-preset, .step-actions .button-quiet):is(:hover, :active) {
+  transform: translateY(-2px);
+}
+#root :is(input, select, textarea):focus {
+  border-color: #82a99b;
+  box-shadow: 0 0 10px rgba(40, 105, 92, .1);
+}
+#root :is(input, select, textarea):focus-visible {
+  outline-color: rgba(40, 105, 92, .35);
+}
+
+.fp-premium .fp-top-tabs {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--fp-line);
+  background: #f7f5ee;
+}
+.fp-premium .fp-top-tab {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  min-height: 49px;
+  padding: 11px 3px;
+  border: 0;
+  color: #555;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+.fp-premium .fp-top-tab:hover,
+.fp-premium .fp-top-tab.is-active { color: #28695c; }
+.fp-premium .fp-top-tabs-indicator {
+  position: absolute;
+  bottom: -1px;
+  left: 8px;
+  width: calc((100% - 16px) / 4);
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: #28695c;
+  transform: translateX(calc(var(--active-tab) * 100%));
+  transition: transform .25s ease-in-out, opacity .25s ease-in-out;
+  pointer-events: none;
+}
+.fp-premium .fp-top-tabs-indicator.is-hidden { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  #root :is(button, input, select, textarea, a, .panel, .metric-card, .water-widget,
+    .movement-stat, .hero-card, .pr-banner, .goal-option, .fp-panel, .fp-stat,
+    .fp-coach-card, .fp-strength-card, .sit-card, .sit-preset, .sit-custom-item),
+  .sit-overlay :is(button, input, select, textarea, a),
+  .fp-premium .fp-top-tabs-indicator { transition: none !important; }
+  #root .fp-page > :not([hidden]),
+  #root .fp-stat-strip > .fp-stat,
+  #root .fp-dashboard-grid > .fp-panel,
+  #root .fp-macro-list > .fp-macro-line,
+  #root .macro-bars > .macro-meter { animation: none !important; }
+}

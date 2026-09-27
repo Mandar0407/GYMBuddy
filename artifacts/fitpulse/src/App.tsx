@@ -244,6 +244,19 @@ function App() {
               </button>
             </div>
           </div>
+          <nav className="fp-top-tabs" aria-label="Quick navigation" style={{ '--active-tab': Math.max(0, navItems.slice(0, 4).findIndex((item) => item.id === view)) } as CSSProperties}>
+            {navItems.slice(0, 4).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`fp-top-tab${view === item.id ? ' is-active' : ''}`}
+                onClick={() => navigate(item.id)}
+                aria-current={view === item.id ? 'page' : undefined}
+                data-testid={`button-top-nav-${item.id}`}
+              >{item.label}</button>
+            ))}
+            <span className={`fp-top-tabs-indicator${view === 'plan' ? ' is-hidden' : ''}`} aria-hidden="true" data-testid="indicator-top-nav" />
+          </nav>
           {mobileNavOpen && (
             <nav className="fp-mobile-nav" id="fitpulse-mobile-navigation" aria-label="Mobile navigation">
               {navItems.map((item) => <NavButton key={item.id} item={item} active={view === item.id} onClick={() => navigate(item.id)} />)}

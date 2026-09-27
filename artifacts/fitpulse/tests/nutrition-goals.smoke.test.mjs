@@ -276,6 +276,28 @@ test('custom nutrition goals update both views and persist after refresh', { tim
 
     await navigateTo(cdp, 'macros');
     await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector('[data-testid="input-target-calories"]'))`), 'daily target form');
+    await waitFor(async () => evaluate(cdp, `(() => {
+      const indicator = document.querySelector('[data-testid="indicator-top-nav"]').getBoundingClientRect();
+      const tab = document.querySelector('[data-testid="button-top-nav-macros"]').getBoundingClientRect();
+      return Math.abs(indicator.left - tab.left) <= 1;
+    })()`), 'top navigation underline to slide to Nutrition');
+    await cdp.send('Page.bringToFront');
+    await evaluate(cdp, `(() => {
+      const field = document.querySelector('[data-testid="input-target-calories"]');
+      field.focus();
+      return true;
+    })()`);
+    await delay(450);
+    const motionStyles = await evaluate(cdp, `(() => {
+      const field = document.querySelector('[data-testid="input-target-calories"]');
+      const style = getComputedStyle(field);
+      return { active: document.activeElement === field, focused: field.matches(':focus'), transition: style.transitionProperty, border: style.borderTopColor, glow: style.boxShadow };
+    })()`);
+    assert.equal(motionStyles.active, true, JSON.stringify(motionStyles));
+    assert.equal(motionStyles.transition, 'all');
+    assert.equal(motionStyles.border, 'rgb(130, 169, 155)', JSON.stringify(motionStyles));
+    assert.match(motionStyles.glow, /40, 105, 92/, JSON.stringify(motionStyles));
+    await evaluate(cdp, `document.activeElement.blur(); true`);
 
     await setInput(cdp, '[data-testid="input-meal-calories"]', 900);
     await setInput(cdp, '[data-testid="input-meal-protein"]', 30);
