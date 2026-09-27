@@ -14,6 +14,10 @@ type Props = {
   strideOverrideCm: number | null;
   motionStatus: MotionStatus;
   storageError: boolean;
+  pairedKey: string;
+  pairedError: string;
+  pairedBusy: boolean;
+  onPair: () => void;
   onStartTracking: () => void;
   onStopTracking: () => void;
   onChange: (amount: number) => void;
@@ -51,7 +55,7 @@ function hourLabel(hour: number) {
 
 export default function MovementPage({
   steps, hourlySteps, todaySteps, currentDate, target, weightKg, heightCm, strideCm, strideOverrideCm,
-  motionStatus, storageError, onStartTracking, onStopTracking, onChange, onSaveSettings,
+  motionStatus, storageError, pairedKey, pairedError, pairedBusy, onPair, onStartTracking, onStopTracking, onChange, onSaveSettings,
 }: Props) {
   const [customSteps, setCustomSteps] = useState('');
   const [customError, setCustomError] = useState('');
@@ -96,6 +100,19 @@ export default function MovementPage({
         <div className="header-date"><strong data-testid="text-step-progress">{progress}% of goal</strong>{target.toLocaleString()} steps planned</div>
       </header>
       {storageError && <p className="movement-storage-error" role="alert">This browser is blocking local storage. Your changes will not survive a refresh until storage is enabled.</p>}
+      <section className="panel" style={{ marginBottom: 22, padding: 22 }}>
+        <div className="section-label">FitPulse mobile</div>
+        <h3>Keep your steps together</h3>
+        <p>On iPhone, the companion reads device step history when opened, including walks while the screen was locked. Android locked-screen history is not available in this version.</p>
+        {pairedKey ? (
+          <>
+            <p>Enter this private pairing key in FitPulse Mobile. Anyone with it can see and change your movement data.</p>
+            <code style={{ overflowWrap: 'anywhere', display: 'block', padding: 12, background: 'hsl(var(--muted))', borderRadius: 10 }} data-testid="movement-pairing-key">{pairedKey}</code>
+            <p>When phone data arrives, it replaces older browser-estimated steps for the same day to avoid double-counting. Manual steps added after pairing are kept separately. Previous browser entries for that day cannot be identified as manual and are not carried into the paired total.</p>
+          </>
+        ) : <button type="button" className="button-primary" onClick={onPair} disabled={pairedBusy} data-testid="button-pair-mobile">Create pairing key</button>}
+        {pairedError && <p role="alert" className="error-text">{pairedError}</p>}
+      </section>
 
       <section className="panel steps-hero">
         <div className="steps-overview">
@@ -122,20 +139,20 @@ export default function MovementPage({
                 <Plus size={16} /> {amount.toLocaleString()} <span>steps</span>
               </button>
             ))}
-            <button className="button-danger" type="button" onClick={() => onChange(-todaySteps)} disabled={!todaySteps} data-testid="button-reset-steps"><RotateCcw size={15} /> Reset <span>today</span></button>
+            <button className="button-danger" type="button" onClick={() => onChange(-todaySteps)} disabled={!todaySteps || pairedBusy} data-testid="button-reset-steps"><RotateCcw size={15} /> {pairedKey ? 'Clear manual' : 'Reset'} <span>today</span></button>
           </div>
           <form className="custom-steps-form" onSubmit={addCustomSteps} noValidate>
             <label htmlFor="custom-step-count">Or enter a custom step count</label>
             <div className="custom-steps-row">
               <input id="custom-step-count" type="number" inputMode="numeric" min="1" max="100000" step="1" placeholder="e.g. 750" value={customSteps} onChange={(event) => { setCustomSteps(event.target.value); setCustomError(''); }} aria-invalid={!!customError} aria-describedby={customError ? 'custom-steps-error' : undefined} data-testid="input-custom-steps" />
-              <button className="button-primary" type="submit" data-testid="button-add-custom-steps"><Plus size={16} /> Add steps</button>
+              <button className="button-primary" type="submit" disabled={pairedBusy} data-testid="button-add-custom-steps"><Plus size={16} /> Add steps</button>
             </div>
             {customError && <p className="error-text" id="custom-steps-error" role="alert">{customError}</p>}
           </form>
         </div>
       </section>
 
-      <section className="panel motion-panel" style={{ marginTop: 22 }}>
+      {!pairedKey && <section className="panel motion-panel" style={{ marginTop: 22 }}>
         <div className="motion-copy">
           <div className={`motion-indicator${motionStatus === 'active' ? ' active' : ''}`} data-testid="status-motion-tracking"><Activity size={17} /><span>{motionStatus === 'active' ? 'Active Motion Sensor' : motionStatus === 'paused' ? 'Sensor paused' : 'Motion sensor'}</span></div>
           <h3>Count steps as you move</h3>
@@ -152,7 +169,7 @@ export default function MovementPage({
             </>
           )}
         </div>
-      </section>
+      </section>}
 
       <section className="panel movement-hourly-panel" style={{ marginTop: 22 }} aria-labelledby="movement-hourly-heading">
         <div className="panel-header">
@@ -172,7 +189,7 @@ export default function MovementPage({
         </div>
         <div className="hourly-axis" aria-hidden="true"><span>12 AM</span><span>6 AM</span><span>12 PM</span><span>6 PM</span></div>
         {unassignedSteps > 0 && <p className="hourly-unassigned" data-testid="text-unassigned-steps">{unassignedSteps.toLocaleString()} earlier steps count toward today’s total but have no saved hour.</p>}
-        <p className="hourly-note">Live and manually added steps are recorded in the hour they’re added. Estimates depend on your phone’s motion sensor.</p>
+        <p className="hourly-note">{pairedKey ? 'iPhone steps are read by hour when you open the companion. Manual additions are recorded in the hour added.' : 'Live and manually added steps are recorded in the hour they’re added. Estimates depend on your phone’s motion sensor.'}</p>
       </section>
 
       <section className="panel movement-week-panel" style={{ marginTop: 22 }}>
@@ -190,7 +207,7 @@ export default function MovementPage({
             </div>
           ))}
         </div>
-        <div className="helper-note" style={{ marginTop: 20 }}><Info size={16} /> <span>Today's bar updates from quick adds, custom entries, and live tracking. History stays saved on this device.</span></div>
+        <div className="helper-note" style={{ marginTop: 20 }}><Info size={16} /> <span>{pairedKey ? 'Paired movement syncs with your phone when it is opened and online. Earlier unpaired history stays in this browser.' : "Today's bar updates from quick adds, custom entries, and live tracking. History stays saved on this device."}</span></div>
       </section>
       {settingsOpen && <MovementSettingsModal target={target} heightCm={heightCm} strideOverrideCm={strideOverrideCm} weightKg={weightKg} onClose={() => setSettingsOpen(false)} onSave={(goal, strideOverride, weight, height) => { onSaveSettings(goal, strideOverride, weight, height); setSettingsOpen(false); }} returnFocusRef={settingsButtonRef} />}
     </>

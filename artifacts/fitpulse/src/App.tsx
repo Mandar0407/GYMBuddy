@@ -31,6 +31,7 @@ import RestTimer from './RestTimer';
 import StrengthIntervalTimer from './StrengthIntervalTimer';
 import WaterIntakeCard from './WaterIntakeCard';
 import { useMotionSteps } from './useMotionSteps';
+import { usePairedMovement } from './usePairedMovement';
 
 type View = 'dashboard' | 'macros' | 'workout' | 'steps' | 'insights' | 'plan';
 type Profile = { name: string; goal: string; weight: number; height: number; calorieTarget: number; proteinTarget: number; carbsTarget: number; fatTarget: number; stepTarget: number };
@@ -175,6 +176,7 @@ function App() {
   const [restSession, setRestSession] = useState<{ id: string; exercise: string; setType: SetType } | null>(null);
   const [storageError, setStorageError] = useState(false);
   const [currentDate, setCurrentDate] = useState(todayKey);
+  const paired = usePairedMovement();
   const recordSteps = (amount: number) => {
     const now = new Date();
     const day = dateKey(now);
@@ -188,8 +190,25 @@ function App() {
     setCurrentDate(day);
   };
   const motion = useMotionSteps(() => {
-    recordSteps(1);
+    if (!paired.key) recordSteps(1);
   });
+  useEffect(() => {
+    if (paired.key) motion.stop();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paired.key]);
+  useEffect(() => {
+    if (!paired.key || !paired.data) return;
+    const { goal, weightKg, strideCm: syncedStride } = paired.data;
+    setProfile((existing) => existing.stepTarget === goal && existing.weight === weightKg
+      ? existing : { ...existing, stepTarget: goal, weight: weightKg });
+    setStrideOverrideCm((existing) => {
+      const derived = Math.round(profile.height * 0.415);
+      const next = syncedStride === derived ? null : syncedStride;
+      return existing === next ? existing : next;
+    });
+  // A changed height can change the automatic stride independently of the paired goal.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paired.key, paired.data, profile.height]);
 
   useEffect(() => {
     const refreshDate = () => setCurrentDate(todayKey());
@@ -228,7 +247,11 @@ function App() {
   };
 
   const todayMacros = macros.filter((meal) => meal.date === currentDate);
-  const todaySteps = steps[currentDate] ?? 0;
+  const visibleSteps = paired.key && paired.data
+    ? { ...steps, ...Object.fromEntries(Object.entries(paired.stepTotals).map(([day, count]) =>
+      [day, paired.nativeDates.has(day) ? count : (steps[day] ?? 0) + count])) }
+    : steps;
+  const todaySteps = visibleSteps[currentDate] ?? 0;
   const todayWater = waterHistory[currentDate] ?? 0;
   const calories = todayMacros.reduce((total, item) => total + item.calories, 0);
   const protein = todayMacros.reduce((total, item) => total + item.protein, 0);
@@ -242,6 +265,8 @@ function App() {
 
   const saveProfile = (nextProfile: Profile) => {
     setProfile(nextProfile);
+    if (paired.key) void paired.saveSettings(nextProfile.stepTarget,
+      strideOverrideCm ?? Math.round(nextProfile.height * 0.415), nextProfile.weight);
     setProfileOpen(false);
     setToast('Profile saved. Your targets are ready.');
   };
@@ -357,27 +382,42 @@ function App() {
             </div>
             {view === 'steps' && (
               <MovementPage
-                steps={steps}
-                hourlySteps={stepHours[currentDate] ?? Array(24).fill(0)}
+                steps={visibleSteps}
+                hourlySteps={paired.key && paired.data?.days.some((day) => day.date === currentDate)
+                  ? paired.nativeDates.has(currentDate) ? paired.hourly[currentDate]
+                    : paired.hourly[currentDate].map((value, i) => value + (stepHours[currentDate]?.[i] ?? 0))
+                  : stepHours[currentDate] ?? Array(24).fill(0)}
                 todaySteps={todaySteps}
                 currentDate={currentDate}
-                target={profile.stepTarget}
-                weightKg={profile.weight}
+                target={paired.data?.goal ?? profile.stepTarget}
+                weightKg={paired.data?.weightKg ?? profile.weight}
                 heightCm={profile.height}
                 strideCm={strideCm}
                 strideOverrideCm={strideOverrideCm}
+                pairedKey={paired.key}
+                pairedError={paired.error}
+                pairedBusy={paired.busy || paired.loading}
+                onPair={() => paired.pair(profile.stepTarget, strideCm, profile.weight)}
                 motionStatus={motion.status}
                 storageError={storageError || motion.storageError}
                 onStartTracking={motion.start}
                 onStopTracking={motion.stop}
                 onChange={(amount) => {
-                  recordSteps(amount);
-                  setToast(amount < 0 ? 'Steps reset for today.' : `${amount.toLocaleString()} steps added.`);
+                  if (paired.key) {
+                    const clearLegacy = amount < 0 && !paired.nativeDates.has(todayKey());
+                    void paired.change(amount, todayKey(), new Date().getHours()).then((saved) => {
+                      if (saved && clearLegacy) recordSteps(-todaySteps);
+                    });
+                  } else {
+                    recordSteps(amount);
+                    setToast(amount < 0 ? 'Steps reset for today.' : `${amount.toLocaleString()} steps added.`);
+                  }
                 }}
                 onSaveSettings={(goal, strideOverride, weight, height) => {
                   setProfile((existing) => ({ ...existing, stepTarget: goal, weight, height }));
                   setStrideOverrideCm(strideOverride);
-                  setToast('Movement settings saved.');
+                  if (paired.key) void paired.saveSettings(goal, strideOverride ?? Math.round(height * 0.415), weight);
+                  else setToast('Movement settings saved.');
                 }}
               />
             )}

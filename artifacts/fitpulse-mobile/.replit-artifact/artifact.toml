@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/fitpulse-mobile/"
+title = "FitPulse Mobile"
+description = "Native movement companion for FitPulse. Recover step history on supported iPhones and pair with the web Movement view."
+version = "1.0.0"
+id = "artifacts/fitpulse-mobile"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/fitpulse-mobile/" ]
+localPort = 23250
+
+[services.development]
+run = "pnpm --filter @workspace/fitpulse-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/fitpulse-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/fitpulse-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "23250"
+BASE_PATH = "/fitpulse-mobile/"

@@ -10,7 +10,89 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: movement
+    description: Paired movement activity
 paths:
+  /movement/accounts:
+    post:
+      operationId: createMovementAccount
+      tags: [movement]
+      responses:
+        "201":
+          description: Pairing key
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MovementAccount" }
+  /movement:
+    get:
+      operationId: getMovement
+      tags: [movement]
+      responses:
+        "200":
+          description: Paired movement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MovementData" }
+  /movement/native:
+    put:
+      operationId: putMovementNative
+      tags: [movement]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MovementNativeInput" }
+      responses:
+        "200":
+          description: Updated movement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MovementData" }
+  /movement/manual:
+    post:
+      operationId: addMovementManual
+      tags: [movement]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MovementManualInput" }
+      responses:
+        "200":
+          description: Updated movement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MovementData" }
+  /movement/manual/{date}:
+    delete:
+      operationId: resetMovementManual
+      tags: [movement]
+      parameters:
+        - in: path
+          name: date
+          required: true
+          schema: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$' }
+      responses:
+        "200":
+          description: Updated movement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MovementData" }
+  /movement/settings:
+    put:
+      operationId: putMovementSettings
+      tags: [movement]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MovementSettingsInput" }
+      responses:
+        "200":
+          description: Updated movement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MovementData" }
   /healthz:
     get:
       operationId: healthCheck
@@ -26,6 +108,57 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 components:
   schemas:
+    MovementAccount:
+      type: object
+      required: [key]
+      properties:
+        key: { type: string }
+    MovementDay:
+      type: object
+      required: [date, nativeHours, manualHours]
+      properties:
+        date: { type: string }
+        nativeHours:
+          type: ["array", "null"]
+          items: { type: integer }
+        manualHours:
+          type: array
+          items: { type: integer }
+    MovementData:
+      type: object
+      required: [days, goal, strideCm, weightKg]
+      properties:
+        days:
+          type: array
+          items: { $ref: "#/components/schemas/MovementDay" }
+        goal: { type: integer }
+        strideCm: { type: number }
+        weightKg: { type: number }
+    MovementNativeInput:
+      type: object
+      required: [date, hours]
+      properties:
+        date: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        hours:
+          type: array
+          minItems: 24
+          maxItems: 24
+          items: { type: integer, minimum: 0, maximum: 100000 }
+    MovementManualInput:
+      type: object
+      required: [id, date, hour, amount]
+      properties:
+        id: { type: string, minLength: 16, maxLength: 100 }
+        date: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        hour: { type: integer, minimum: 0, maximum: 23 }
+        amount: { type: integer, minimum: 1, maximum: 100000 }
+    MovementSettingsInput:
+      type: object
+      required: [goal, strideCm, weightKg]
+      properties:
+        goal: { type: integer, minimum: 1000, maximum: 100000 }
+        strideCm: { type: number, minimum: 30, maximum: 150 }
+        weightKg: { type: number, minimum: 20, maximum: 500 }
     HealthStatus:
       type: object
       properties:
