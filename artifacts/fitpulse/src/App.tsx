@@ -9,12 +9,10 @@ import {
   ChevronDown,
   CircleUserRound,
   Dumbbell,
-  Droplets,
   Footprints,
   Home,
   Info,
   Menu,
-  Minus,
   Plus,
   Sparkles,
   Target,
@@ -27,6 +25,7 @@ import {
 import PremiumDashboard from './PremiumDashboard';
 import MovementPage from './MovementPage';
 import RestTimer from './RestTimer';
+import WaterIntakeCard from './WaterIntakeCard';
 import { useMotionSteps } from './useMotionSteps';
 
 type View = 'dashboard' | 'macros' | 'workout' | 'steps' | 'plan';
@@ -47,6 +46,7 @@ const STORAGE = {
   steps: 'fitpulse-steps',
   stride: 'fitpulse-stride-cm',
   water: 'fitpulse-water',
+  waterGoal: 'fitpulse-water-goal',
 };
 
 const defaultProfile: Profile = {
@@ -136,6 +136,10 @@ function App() {
   const [workouts, setWorkouts] = useState<WorkoutSet[]>(() => readStorage(STORAGE.workouts, []));
   const [steps, setSteps] = useState<StepsMap>(() => readStorage(STORAGE.steps, {}));
   const [waterHistory, setWaterHistory] = useState<StepsMap>(() => readStorage(STORAGE.water, {}));
+  const [waterGoal, setWaterGoal] = useState(() => {
+    const saved = readStorage<number>(STORAGE.waterGoal, 2000);
+    return Number.isInteger(saved) && saved >= 100 && saved <= 20000 ? saved : 2000;
+  });
   const [strideCm, setStrideCm] = useState(() => {
     const saved = readStorage<number>(STORAGE.stride, 74);
     return Number.isFinite(saved) && saved >= 30 && saved <= 150 ? saved : 74;
@@ -171,6 +175,7 @@ function App() {
   useEffect(() => { persist(STORAGE.workouts, workouts); }, [workouts]);
   useEffect(() => { persist(STORAGE.steps, steps); }, [steps]);
   useEffect(() => { persist(STORAGE.water, waterHistory); }, [waterHistory]);
+  useEffect(() => { persist(STORAGE.waterGoal, waterGoal); }, [waterGoal]);
   useEffect(() => { persist(STORAGE.stride, strideCm); }, [strideCm]);
   useEffect(() => {
     if (!toast) return undefined;
@@ -266,6 +271,8 @@ function App() {
                 profile={profile}
                 logs={todayMacros}
                 waterMl={todayWater}
+                 waterGoal={waterGoal}
+                 onWaterGoalChange={setWaterGoal}
                 onWaterChange={(amount) => {
                   const day = todayKey();
                   setWaterHistory((existing) => ({ ...existing, [day]: Math.max(0, (existing[day] ?? 0) + amount) }));
@@ -405,6 +412,8 @@ function MacrosPage({
   profile,
   logs,
   waterMl,
+  waterGoal,
+  onWaterGoalChange,
   onWaterChange,
   onAdd,
   onDelete,
@@ -413,6 +422,8 @@ function MacrosPage({
   profile: Profile;
   logs: MacroLog[];
   waterMl: number;
+  waterGoal: number;
+  onWaterGoalChange: (goal: number) => void;
   onWaterChange: (amount: number) => void;
   onAdd: (log: MacroLog) => void;
   onDelete: (id: string) => void;
@@ -506,23 +517,7 @@ function MacrosPage({
         <section className="panel" data-testid="card-macro-totals">
           <div className="panel-header"><div><h3>Today’s totals</h3><p>{logs.length ? 'A quick read of your fuel.' : 'Ready when you are.'}</p></div><div className="section-label">{Math.min(100, Math.round((calories / profile.calorieTarget) * 100))}% target</div></div>
            <div className="macro-summary"><div className="calorie-ring" data-testid="progress-calories" role="progressbar" aria-label="Calories consumed" aria-valuemin={0} aria-valuemax={profile.calorieTarget} aria-valuenow={Math.min(calories, profile.calorieTarget)} style={{ '--calorie-progress': `${Math.min(100, (calories / profile.calorieTarget) * 100)}%` } as CSSProperties}><div className="calorie-ring-content"><strong>{formatAmount(calories)}</strong><span>kcal in</span></div></div><MacroBars protein={protein} carbs={carbs} fat={fat} targets={profile} /></div>
-           <div className="water-widget" data-testid="card-water-intake">
-             <div className="water-widget-heading">
-               <span className="water-widget-icon"><Droplets size={18} /></span>
-               <div><strong>Water intake</strong><small>Build the habit, one glass at a time.</small></div>
-               <span className="water-widget-total" data-testid="text-water-intake">{waterMl.toLocaleString()} <small>ml</small></span>
-             </div>
-             <div className="water-segments" role="progressbar" aria-label="Water intake" aria-valuemin={0} aria-valuemax={2000} aria-valuenow={Math.min(waterMl, 2000)} aria-valuetext={`${waterMl.toLocaleString()} of 2,000 milliliters`}>
-               {Array.from({ length: 8 }, (_, index) => <i key={index} className={index < Math.ceil(waterMl / 250) ? 'is-filled' : ''} />)}
-             </div>
-             <div className="water-widget-footer">
-               <span>250 ml per glass · 2,000 ml daily guide</span>
-               <div>
-                 <button type="button" className="button-quiet" onClick={() => onWaterChange(-250)} disabled={waterMl === 0} aria-label="Remove 250 milliliters of water" data-testid="button-remove-water"><Minus size={15} /> 250</button>
-                 <button type="button" className="button-primary" onClick={() => onWaterChange(250)} data-testid="button-add-water"><Plus size={15} /> Add 250 ml</button>
-               </div>
-             </div>
-           </div>
+           <WaterIntakeCard waterMl={waterMl} goalMl={waterGoal} onWaterChange={onWaterChange} onGoalChange={onWaterGoalChange} />
         </section>
       </div>
       <section className="panel" style={{ marginTop: 22 }}><div className="panel-header"><div><h3>Today’s meals</h3><p>Tap the bin if something needs correcting.</p></div><div className="section-label">{logs.length} {logs.length === 1 ? 'entry' : 'entries'}</div></div>{logs.length ? <div className="log-list">{logs.map((meal) => <MealRow key={meal.id} meal={meal} onDelete={onDelete} />)}</div> : <EmptyState icon={Utensils} title="Your meal log is clear" text="Start with whatever is in front of you. The useful habit is noticing." />}</section>

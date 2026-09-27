@@ -299,6 +299,30 @@ test('custom nutrition goals update both views and persist after refresh', { tim
     });
     assert.match(await evaluate(cdp, `document.querySelector('[data-testid="card-macro-totals"]').textContent`), /50% target/);
 
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="text-water-goal"]').textContent`), /2,000 ml goal/);
+    await click(cdp, '[data-testid="button-edit-water-goal"]');
+    await setInput(cdp, '[data-testid="input-water-goal"]', 0);
+    await click(cdp, '[data-testid="button-save-water-goal"]');
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="status-water-goal-error"]')?.textContent`), /whole number/);
+    await setInput(cdp, '[data-testid="input-water-goal"]', 3000);
+    await click(cdp, '[data-testid="button-save-water-goal"]');
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="text-water-goal"]').textContent`), /3,000 ml goal/);
+    await click(cdp, '[data-testid="button-add-water-330"]');
+    await click(cdp, '[data-testid="button-add-water-750"]');
+    await setInput(cdp, '[data-testid="input-water-custom"]', 420);
+    await click(cdp, '[data-testid="button-add-water-custom"]');
+    const waterProgress = await evaluate(cdp, `(() => {
+      const card = document.querySelector('[data-testid="card-water-intake"]');
+      const progress = card.querySelector('[role="progressbar"]');
+      return {
+        current: progress.getAttribute('aria-valuenow'),
+        target: progress.getAttribute('aria-valuemax'),
+        segments: card.querySelectorAll('.water-segments .is-filled').length,
+        amount: card.querySelector('[data-testid="text-water-intake"]').textContent.trim(),
+      };
+    })()`);
+    assert.deepEqual(waterProgress, { current: '1500', target: '3000', segments: 4, amount: '1,500 ml' });
+
     await navigateTo(cdp, 'dashboard');
     await waitFor(async () => evaluate(cdp, `document.querySelector('[data-testid="card-dashboard-macros"] [data-testid="progress-calories"]')?.getAttribute('aria-valuemax') === '1800'`), 'dashboard targets to update');
     const dashboardProgress = await readProgress(cdp, '[data-testid="card-dashboard-macros"]');
@@ -327,6 +351,8 @@ test('custom nutrition goals update both views and persist after refresh', { tim
     )`);
     assert.deepEqual(savedTargets, { calories: '1800', protein: '60', carbs: '120', fat: '40' });
     assert.deepEqual(await readProgress(cdp, '[data-testid="card-macro-totals"]'), macrosProgress);
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="text-water-goal"]').textContent`), /50% of 3,000 ml goal/);
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="text-water-intake"]').textContent`), /1,500 ml/);
   } catch (error) {
     error.message += `\nVite output:\n${serverOutput}\nChromium output:\n${browserOutput}`;
     throw error;

@@ -259,15 +259,29 @@
 .water-widget-heading > div { min-width: 0; }
 .water-widget-heading strong { display: block; font-size: 13px; }
 .water-widget-heading small { display: block; margin-top: 2px; color: hsl(var(--muted-foreground)); font-size: 10px; }
-.water-widget-total { margin-left: auto; white-space: nowrap; font: 600 22px var(--app-font-serif); }
+.water-widget-title { flex: 1; }
+.water-goal-toggle { display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; border: 1px solid hsl(var(--border)); border-radius: 11px; background: hsl(var(--card)); color: hsl(var(--secondary-foreground)); }
+.water-goal-toggle:hover, .water-quick-add button:hover { border-color: hsl(var(--secondary-foreground)); background: hsl(var(--secondary)); }
+.water-progress-copy { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 3px 10px; margin-top: 15px; }
+.water-progress-copy > span:last-child { color: #555; font-size: 12px; font-weight: 500; }
+.water-widget-total { white-space: nowrap; font: 600 22px var(--app-font-serif); }
 .water-widget-total small { display: inline; font: 600 10px var(--app-font-sans); }
 .water-segments { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; margin-top: 14px; }
 .water-segments i { height: 9px; border-radius: 8px; background: hsl(var(--secondary-foreground) / .13); transition: background .2s ease; }
 .water-segments i.is-filled { background: hsl(var(--secondary-foreground)); }
-.water-widget-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
-.water-widget-footer > span { color: hsl(var(--muted-foreground)); font-size: 10px; line-height: 1.4; }
-.water-widget-footer > div { display: flex; gap: 6px; flex: 0 0 auto; }
-.water-widget-footer button { min-height: 36px; padding: 7px 9px; font-size: 11px; }
+.water-goal-form, .water-custom-form { display: grid; gap: 7px; margin-top: 14px; }
+.water-goal-form { padding: 12px; border: 1px solid hsl(var(--border)); border-radius: 12px; background: hsl(var(--card)); }
+.water-goal-form label, .water-custom-form label { color: hsl(var(--foreground)); font-size: 12px; font-weight: 700; }
+.water-entry-row { display: flex; gap: 8px; }
+.water-entry-row input { flex: 1; min-width: 0; height: 50px; padding: 0 11px; border: 1px solid hsl(var(--input)); border-radius: 10px; color: #27231f; background: hsl(var(--card)); font-size: 16px; font-weight: 500; }
+.water-entry-row input:focus-visible, .water-widget button:focus-visible { outline: 2px solid hsl(var(--secondary-foreground)); outline-offset: 2px; }
+.water-entry-button { min-height: 50px; padding: 0 13px; border: 0; border-radius: 10px; color: #fff; background: hsl(var(--secondary-foreground)); font-size: 14px; font-weight: 700; white-space: nowrap; }
+.water-entry-button:hover { filter: brightness(.9); }
+.water-error { margin: 0; color: hsl(var(--destructive)); font-size: 12px; }
+.water-quick-add { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 16px; }
+.water-quick-add button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 46px; border: 1px solid hsl(var(--secondary-foreground) / .3); border-radius: 12px; color: hsl(var(--secondary-foreground)); background: hsl(var(--card)); font-size: 14px; font-weight: 700; white-space: nowrap; }
+.water-undo { display: inline-flex; align-items: center; gap: 5px; min-height: 38px; margin-top: 8px; padding: 0 4px; border: 0; color: hsl(var(--muted-foreground)); background: transparent; font-size: 12px; }
+.water-undo:disabled { opacity: .45; cursor: not-allowed; }
 .goal-picker { margin-top: 24px; }
 .goal-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
 .goal-option { display: grid; gap: 5px; text-align: left; padding: 13px; border: 1px solid hsl(var(--border)); border-radius: 12px; background: hsl(var(--background)); color: hsl(var(--foreground)); transition: border-color .2s, background-color .2s, transform .2s; }
@@ -466,9 +480,6 @@
   .hero-streak { top: 24px; right: 24px; }
   .hero-streak strong { font-size: 30px; }
   .content-grid, .macro-summary, .steps-hero { grid-template-columns: 1fr; }
-  .water-widget-footer { align-items: flex-start; flex-direction: column; }
-  .water-widget-footer > div { width: 100%; }
-  .water-widget-footer button:last-child { flex: 1; }
   .history-row:not(.history-head) { grid-template-columns: minmax(0, 1.4fr) .7fr .6fr .75fr auto; }
   .rest-timer { right: 14px; bottom: 14px; left: 14px; width: auto; }
   .movement-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -517,7 +528,7 @@
 #root :is(.page-header p, .header-date, .metric-card .metric-top, .metric-card small,
   .metric-card strong span, .panel-header p, .section-label, .target-form-footer > span,
   .calorie-ring span, .macro-bar-top, .macro-meter-foot, .water-widget-heading small,
-  .water-widget-total small, .water-widget-footer > span, .goal-option span,
+  .water-widget-total small, .goal-option span,
   .plan-calorie-result small, .plan-calorie-detail, .bmi-result-row p, .bmi-scale span,
   .empty-state p, .log-copy span, .field-hint, .error-text, .pr-banner span,
   .history-row span, .history-head, .history-exercise small, .steps-number span,
