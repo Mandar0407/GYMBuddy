@@ -1,0 +1,1 @@
+- [Nutrition history dates](nutrition-history-dates.md) — older meals can have uncertain dates; avoid treating migration-day entries as reliable historical trends.

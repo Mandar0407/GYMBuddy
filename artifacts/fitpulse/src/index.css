@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=DM+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
@@ -34,26 +34,26 @@
 }
 
 :root {
-  --background: 39 44% 95%;
-  --foreground: 216 28% 16%;
-  --border: 39 20% 84%;
-  --input: 39 20% 84%;
-  --ring: 18 82% 55%;
-  --card: 40 50% 98%;
-  --card-foreground: 216 28% 16%;
-  --card-border: 39 24% 87%;
-  --primary: 18 82% 55%;
-  --primary-foreground: 40 50% 98%;
-  --secondary: 177 34% 87%;
-  --secondary-foreground: 177 42% 19%;
-  --muted: 39 27% 90%;
-  --muted-foreground: 216 12% 45%;
-  --accent: 47 88% 60%;
-  --accent-foreground: 216 28% 16%;
+  --background: 39 40% 94%;
+  --foreground: 30 11% 14%;
+  --border: 36 30% 87%;
+  --input: 36 30% 87%;
+  --ring: 12 76% 55%;
+  --card: 45 100% 99%;
+  --card-foreground: 30 11% 14%;
+  --card-border: 36 30% 87%;
+  --primary: 12 76% 55%;
+  --primary-foreground: 45 100% 99%;
+  --secondary: 120 21% 93%;
+  --secondary-foreground: 164 44% 28%;
+  --muted: 37 34% 89%;
+  --muted-foreground: 36 8% 49%;
+  --accent: 68 68% 66%;
+  --accent-foreground: 30 11% 14%;
   --destructive: 4 70% 50%;
   --destructive-foreground: 40 50% 98%;
   --app-font-sans: 'DM Sans', sans-serif;
-  --app-font-serif: 'Bricolage Grotesque', sans-serif;
+  --app-font-serif: 'Manrope', sans-serif;
   --app-font-mono: 'DM Sans', sans-serif;
   --radius: 1.1rem;
   --shadow-card: 0 12px 28px rgba(34, 42, 47, 0.06), 0 2px 5px rgba(34, 42, 47, 0.04);
@@ -325,7 +325,7 @@
 .weekly-bars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; align-items: end; height: 155px; }
 .day-column { display: grid; grid-template-rows: 1fr auto; gap: 9px; align-items: end; height: 100%; text-align: center; }
 .day-bar-area { height: 100%; display: flex; align-items: end; justify-content: center; }
-.day-bar { width: min(22px, 70%); min-height: 5px; border-radius: 7px 7px 3px 3px; background: hsl(var(--secondary-foreground)); opacity: .8; transition: height .35s ease; }
+.day-bar { width: min(22px, 70%); border-radius: 7px 7px 3px 3px; background: hsl(var(--secondary-foreground)); opacity: .8; transition: height .35s ease; }
 .day-column.today .day-bar { background: hsl(var(--primary)); opacity: 1; }
 .day-column span { color: hsl(var(--muted-foreground)); font-size: 10px; }
 .helper-note { display: flex; gap: 10px; align-items: flex-start; padding: 13px; background: hsl(var(--secondary) / .5); border-radius: 12px; color: hsl(var(--secondary-foreground)); font-size: 12px; line-height: 1.45; }

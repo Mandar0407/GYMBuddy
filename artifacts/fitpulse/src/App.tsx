@@ -1,4 +1,4 @@
-import { type CSSProperties, type FormEvent, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, type FormEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from 'react';
 import {
   Activity,
   Apple,
@@ -7,16 +7,16 @@ import {
   BarChart3,
   Calculator,
   Check,
+  ChevronDown,
   CircleUserRound,
   Dumbbell,
-  Flame,
   Footprints,
   Home,
   Info,
   Menu,
   Plus,
   RotateCcw,
-  Settings2,
+  Sparkles,
   Target,
   Trash2,
   Utensils,
@@ -24,10 +24,11 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react';
+import PremiumDashboard from './PremiumDashboard';
 
 type View = 'dashboard' | 'macros' | 'workout' | 'steps' | 'plan';
 type Profile = { name: string; goal: string; weight: number; height: number; calorieTarget: number; proteinTarget: number; carbsTarget: number; fatTarget: number; stepTarget: number };
-type MacroLog = { id: string; meal: string; calories: number; protein: number; carbs: number; fat: number; time: string };
+type MacroLog = { id: string; meal: string; calories: number; protein: number; carbs: number; fat: number; time: string; date?: string };
 type WorkoutSet = { id: string; exercise: string; weight: number; reps: number; estimatedOneRm: number; date: string };
 type StepsMap = Record<string, number>;
 type MotionStatus = 'idle' | 'requesting' | 'active' | 'denied' | 'unsupported';
@@ -63,16 +64,19 @@ const activityMultipliers: Record<ActivityLevel, number> = {
   high: 1.725,
 };
 const navItems: { id: View; label: string; icon: LucideIcon }[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: Home },
-  { id: 'macros', label: 'Macros', icon: Apple },
-  { id: 'workout', label: 'Workout', icon: Dumbbell },
-  { id: 'steps', label: 'Steps', icon: Footprints },
-  { id: 'plan', label: 'Plan', icon: Calculator },
+  { id: 'dashboard', label: 'Today', icon: Home },
+  { id: 'macros', label: 'Nutrition', icon: Apple },
+  { id: 'workout', label: 'Strength', icon: Dumbbell },
+  { id: 'steps', label: 'Movement', icon: Footprints },
+  { id: 'plan', label: 'My plan', icon: Target },
 ];
 
+function dateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 function todayKey() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  return dateKey(new Date());
 }
 
 function readStorage<T>(key: string, fallback: T): T {
@@ -82,6 +86,18 @@ function readStorage<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function readMeals(): MacroLog[] {
+  const stored = readStorage<MacroLog[]>(STORAGE.macros, []);
+  if (!Array.isArray(stored)) return [];
+  return stored.map((meal) => {
+    if (meal.date && /^\d{4}-\d{2}-\d{2}$/.test(meal.date)) return meal;
+    const timestamp = /^(?:meal-)?(\d{13})(?:-|$)/.exec(meal.id);
+    const loggedAt = timestamp ? new Date(Number(timestamp[1])) : null;
+    // Older opaque IDs have no recoverable date; retain those meals on the migration day.
+    return { ...meal, date: loggedAt && !Number.isNaN(loggedAt.getTime()) ? dateKey(loggedAt) : todayKey() };
+  });
 }
 
 function initials(name: string) {
@@ -101,16 +117,33 @@ function numberValue(value: string) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function formatAmount(value: number) {
+  return Number(value.toFixed(2)).toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
 function App() {
   const [view, setView] = useState<View>('dashboard');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const profileTriggerRef = useRef<HTMLButtonElement>(null);
   const [profile, setProfile] = useState<Profile>(() => ({ ...defaultProfile, ...readStorage(STORAGE.profile, defaultProfile) }));
-  const [macros, setMacros] = useState<MacroLog[]>(() => readStorage(STORAGE.macros, []));
+  const [macros, setMacros] = useState<MacroLog[]>(readMeals);
   const [workouts, setWorkouts] = useState<WorkoutSet[]>(() => readStorage(STORAGE.workouts, []));
   const [steps, setSteps] = useState<StepsMap>(() => readStorage(STORAGE.steps, {}));
   const [toast, setToast] = useState('');
-  const currentDate = todayKey();
+  const [currentDate, setCurrentDate] = useState(todayKey);
+
+  useEffect(() => {
+    const refreshDate = () => setCurrentDate(todayKey());
+    const interval = window.setInterval(refreshDate, 60_000);
+    window.addEventListener('focus', refreshDate);
+    document.addEventListener('visibilitychange', refreshDate);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshDate);
+      document.removeEventListener('visibilitychange', refreshDate);
+    };
+  }, []);
 
   useEffect(() => { window.localStorage.setItem(STORAGE.profile, JSON.stringify(profile)); }, [profile]);
   useEffect(() => { window.localStorage.setItem(STORAGE.macros, JSON.stringify(macros)); }, [macros]);
@@ -125,10 +158,10 @@ function App() {
   const navigate = (nextView: View) => {
     setView(nextView);
     setMobileNavOpen(false);
-    window.setTimeout(() => document.querySelector('.main-inner')?.scrollTo({ top: 0, behavior: 'smooth' }), 0);
+    window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 0);
   };
 
-  const todayMacros = macros;
+  const todayMacros = macros.filter((meal) => meal.date === currentDate);
   const todaySteps = steps[currentDate] ?? 0;
   const calories = todayMacros.reduce((total, item) => total + item.calories, 0);
   const protein = todayMacros.reduce((total, item) => total + item.protein, 0);
@@ -141,49 +174,57 @@ function App() {
     setProfileOpen(false);
     setToast('Profile saved. Your targets are ready.');
   };
+  const addMeal = (log: MacroLog) => {
+    const loggedDate = todayKey();
+    setMacros((existing) => [{ ...log, date: loggedDate }, ...existing]);
+    setCurrentDate(loggedDate);
+    setToast(`${log.meal} added to today.`);
+  };
+  const openProfile = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    profileTriggerRef.current = event.currentTarget;
+    setProfileOpen(true);
+  };
 
   return (
-    <div className="fitpulse-app">
-      <div className="fitpulse-shell">
-        <aside className="sidebar" aria-label="Primary navigation">
+    <div className="fp-premium">
+      <div className="fp-layout">
+        <aside className="fp-sidebar" aria-label="Primary navigation">
           <Brand />
-          <div className="eyebrow">Your daily ritual</div>
-          <nav className="nav-stack">
-            {navItems.map((item) => (
-              <NavButton key={item.id} item={item} active={view === item.id} onClick={() => navigate(item.id)} />
-            ))}
+          <div className="fp-side-caption">YOUR SPACE</div>
+          <nav className="fp-nav" aria-label="Main navigation">
+            {navItems.map((item) => <NavButton key={item.id} item={item} active={view === item.id} onClick={() => navigate(item.id)} />)}
           </nav>
-          <div className="sidebar-spacer" />
-          <button className="profile-chip" onClick={() => setProfileOpen(true)} data-testid="button-open-profile">
-            <span className="avatar" data-testid="text-profile-initials">{initials(profile.name)}</span>
-            <span className="profile-copy">
-              <strong data-testid="text-profile-name">{profile.name}</strong>
-              <span>{profile.goal}</span>
-            </span>
-            <Settings2 size={16} />
+          <div className="fp-side-note">
+            <span className="fp-note-icon"><Sparkles size={15} /></span>
+            <p><strong>Progress, not pressure.</strong><br />Your rhythm is yours to make.</p>
+          </div>
+          <button className="fp-profile" type="button" onClick={openProfile} data-testid="button-open-profile">
+            <span className="fp-avatar" data-testid="text-profile-initials">{initials(profile.name)}</span>
+            <span className="fp-profile-copy"><strong data-testid="text-profile-name">{profile.name}</strong><span>{profile.goal}</span></span>
+            <ChevronDown size={15} />
           </button>
         </aside>
 
-        <main className="main-area">
-          <div className="mobile-topbar">
+        <main className="fp-main">
+          <div className="fp-mobilebar">
             <Brand compact />
-            <button className="mobile-menu" onClick={() => setMobileNavOpen((open) => !open)} aria-label="Open navigation" data-testid="button-mobile-menu">
-              <Menu size={20} />
-            </button>
-          </div>
-          {mobileNavOpen && (
-            <div className="mobile-nav-panel" style={{ padding: '0 17px 10px', display: 'grid', gap: 4 }}>
-              {navItems.map((item) => (
-                <NavButton key={item.id} item={item} active={view === item.id} onClick={() => navigate(item.id)} />
-              ))}
-              <button className="nav-button" onClick={() => { setProfileOpen(true); setMobileNavOpen(false); }} data-testid="button-mobile-profile">
-                <CircleUserRound size={18} /> Profile settings
+            <div className="fp-mobile-actions">
+              <button className="fp-menu-toggle" type="button" onClick={() => setMobileNavOpen((open) => !open)} aria-expanded={mobileNavOpen} aria-controls="fitpulse-mobile-navigation" aria-label={mobileNavOpen ? 'Close navigation' : 'Open navigation'} data-testid="button-mobile-menu">
+                {mobileNavOpen ? <X size={19} /> : <Menu size={19} />}
               </button>
             </div>
+          </div>
+          {mobileNavOpen && (
+            <nav className="fp-mobile-nav" id="fitpulse-mobile-navigation" aria-label="Mobile navigation">
+              {navItems.map((item) => <NavButton key={item.id} item={item} active={view === item.id} onClick={() => navigate(item.id)} />)}
+              <button className="fp-nav-item" type="button" onClick={(event) => { openProfile(event); setMobileNavOpen(false); }} data-testid="button-mobile-profile">
+                <CircleUserRound size={17} /><span>Profile</span>
+              </button>
+            </nav>
           )}
-          <div className="main-inner">
+          <div className="fp-page">
             {view === 'dashboard' && (
-              <Dashboard
+              <PremiumDashboard
                 profile={profile}
                 calories={calories}
                 protein={protein}
@@ -193,13 +234,14 @@ function App() {
                 workoutCount={workoutCount}
                 macros={todayMacros}
                 onNavigate={navigate}
+                onAddMeal={addMeal}
               />
             )}
             {view === 'macros' && (
               <MacrosPage
                 profile={profile}
                 logs={todayMacros}
-                onAdd={(log) => { setMacros((existing) => [log, ...existing]); setToast(`${log.meal} added to today.`); }}
+                onAdd={addMeal}
                 onDelete={(id) => { setMacros((existing) => existing.filter((item) => item.id !== id)); setToast('Meal removed.'); }}
                 onSaveTargets={(targets) => {
                   setProfile((existing) => ({ ...existing, ...targets }));
@@ -252,17 +294,17 @@ function App() {
           </div>
         </main>
       </div>
-      {profileOpen && <ProfileModal profile={profile} onClose={() => setProfileOpen(false)} onSave={saveProfile} />}
-      {toast && <div className="toast" role="status" data-testid="status-toast"><Check size={16} /> {toast}</div>}
+      {profileOpen && <ProfileModal profile={profile} onClose={() => setProfileOpen(false)} onSave={saveProfile} returnFocusRef={profileTriggerRef} />}
+      {toast && <div className="fp-toast" role="status" data-testid="status-toast"><Check size={16} /> {toast}</div>}
     </div>
   );
 }
 
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="brand-lockup" data-testid="brand-fitpulse">
-      <span className="brand-mark"><Activity size={compact ? 17 : 19} strokeWidth={2.7} /></span>
-      <span className="brand-name">fit<span>pulse</span></span>
+    <div className={`fp-brand${compact ? ' fp-brand-compact' : ''}`} data-testid="brand-fitpulse">
+      <span className="fp-brand-mark"><Activity size={compact ? 17 : 19} strokeWidth={2.5} /></span>
+      <span>fit<span>pulse</span></span>
     </div>
   );
 }
@@ -270,93 +312,21 @@ function Brand({ compact = false }: { compact?: boolean }) {
 function NavButton({ item, active, onClick }: { item: (typeof navItems)[number]; active: boolean; onClick: () => void }) {
   const Icon = item.icon;
   return (
-    <button className={`nav-button${active ? ' active' : ''}`} onClick={onClick} data-testid={`button-nav-${item.id}`}>
-      <Icon size={18} strokeWidth={active ? 2.5 : 2} />
-      {item.label}
+    <button type="button" className={`fp-nav-item${active ? ' is-active' : ''}`} onClick={onClick} aria-current={active ? 'page' : undefined} data-testid={`button-nav-${item.id}`}>
+      <Icon size={17} strokeWidth={active ? 2.4 : 1.9} />
+      <span>{item.label}</span>
+      {active && <span className="fp-nav-active-dot" />}
     </button>
-  );
-}
-
-type DashboardProps = {
-  profile: Profile;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  todaySteps: number;
-  workoutCount: number;
-  macros: MacroLog[];
-  onNavigate: (view: View) => void;
-};
-
-function Dashboard({ profile, calories, protein, carbs, fat, todaySteps, workoutCount, macros, onNavigate }: DashboardProps) {
-  const calorieProgress = Math.min(100, Math.round((calories / profile.calorieTarget) * 100));
-  return (
-    <>
-      <header className="page-header">
-        <div>
-          <div className="eyebrow">Today · {formatLongDate()}</div>
-          <h1>Make today count, {profile.name.split(' ')[0]}.</h1>
-          <p>A clear look at the habits that make you feel strong.</p>
-        </div>
-        <div className="header-date"><strong data-testid="text-today-date">{formatLongDate()}</strong>Your rhythm, one day at a time</div>
-      </header>
-      <section className="hero-card" data-testid="card-daily-ritual">
-        <div className="hero-content">
-          <div className="eyebrow">Daily ritual</div>
-          <h2>Small inputs. Noticeable change.</h2>
-          <p>You do not need a perfect day. Just give the next choice your full attention.</p>
-        </div>
-        <div className="hero-streak"><strong>{workoutCount + (todaySteps > 0 ? 1 : 0)}</strong><span>signals today</span></div>
-      </section>
-      <div className="metric-grid">
-        <MetricCard icon={Flame} label="Calories" value={calories.toLocaleString()} suffix={`/ ${profile.calorieTarget.toLocaleString()} kcal`} note={`${calorieProgress}% of target`} />
-        <MetricCard icon={Dumbbell} label="Strength work" value={String(workoutCount)} suffix="sets" note={workoutCount ? 'Good work is logged' : 'A blank slate today'} />
-        <MetricCard icon={Footprints} label="Steps" value={todaySteps.toLocaleString()} suffix={`/ ${profile.stepTarget.toLocaleString()}`} note={`${Math.min(100, Math.round((todaySteps / profile.stepTarget) * 100))}% of daily goal`} />
-         <MetricCard icon={Target} label="Protein" value={`${Math.round(protein)}g`} suffix={`/ ${profile.proteinTarget}g`} note="Fuel your training" />
-      </div>
-      <div className="content-grid">
-        <section className="panel" data-testid="card-dashboard-macros">
-          <div className="panel-header">
-            <div><h3>Nutrition, at a glance</h3><p>Today’s fuel in three simple numbers.</p></div>
-            <button className="button-quiet" onClick={() => onNavigate('macros')} data-testid="button-view-macros">Open macros <ArrowRight size={14} /></button>
-          </div>
-          <div className="macro-summary">
-            <div className="calorie-ring" style={{ '--calorie-progress': `${calorieProgress}%` } as CSSProperties}>
-              <div className="calorie-ring-content"><strong data-testid="text-calorie-total">{calories.toLocaleString()}</strong><span>of {profile.calorieTarget.toLocaleString()} kcal</span></div>
-            </div>
-             <MacroBars protein={protein} carbs={carbs} fat={fat} targets={profile} />
-           </div>
-         </section>
-         <section className="panel" data-testid="card-recent-meals">
-          <div className="panel-header">
-            <div><h3>Recent meals</h3><p>{macros.length ? `${macros.length} logged today` : 'Your plate starts here.'}</p></div>
-            <button className="button-icon button-quiet" onClick={() => onNavigate('macros')} aria-label="Add a meal" data-testid="button-dashboard-add-meal"><Plus size={17} /></button>
-          </div>
-          {macros.length ? <div className="log-list">{macros.slice(0, 4).map((meal) => <MealRow key={meal.id} meal={meal} />)}</div> : <EmptyState icon={Utensils} title="No meals logged yet" text="Track your first bite and build a clearer picture of today." action="Log a meal" onClick={() => onNavigate('macros')} />}
-        </section>
-      </div>
-    </>
-  );
-}
-
-function MetricCard({ icon: Icon, label, value, suffix, note }: { icon: LucideIcon; label: string; value: string; suffix: string; note: string }) {
-  return (
-    <article className="metric-card" data-testid={`card-metric-${label.toLowerCase().replace(' ', '-')}`}>
-      <div className="metric-top"><span>{label}</span><span className="metric-icon"><Icon size={15} /></span></div>
-      <strong data-testid={`text-metric-${label.toLowerCase().replace(' ', '-')}`}>{value} <span>{suffix}</span></strong>
-      <small>{note}</small>
-    </article>
   );
 }
 
 function MacroBars({ protein, carbs, fat, targets }: { protein: number; carbs: number; fat: number; targets: Pick<Profile, 'proteinTarget' | 'carbsTarget' | 'fatTarget'> }) {
   const rows = [
-    { label: 'Protein', value: Math.round(protein), target: targets.proteinTarget, className: 'bar-protein' },
-    { label: 'Carbs', value: Math.round(carbs), target: targets.carbsTarget, className: 'bar-carbs' },
-    { label: 'Fat', value: Math.round(fat), target: targets.fatTarget, className: 'bar-fat' },
+    { label: 'Protein', value: protein, target: targets.proteinTarget, className: 'bar-protein' },
+    { label: 'Carbs', value: carbs, target: targets.carbsTarget, className: 'bar-carbs' },
+    { label: 'Fat', value: fat, target: targets.fatTarget, className: 'bar-fat' },
   ];
-  return <div className="macro-bars">{rows.map((row) => <div key={row.label}><div className="macro-bar-top"><span>{row.label}</span><strong>{row.value}g <span>/ {row.target}g</span></strong></div><div className="bar-track"><div className={`bar-fill ${row.className}`} style={{ width: `${Math.min(100, (row.value / row.target) * 100)}%` }} /></div></div>)}</div>;
+  return <div className="macro-bars">{rows.map((row) => <div key={row.label}><div className="macro-bar-top"><span>{row.label}</span><strong>{formatAmount(row.value)}g <span>/ {formatAmount(row.target)}g</span></strong></div><div className="bar-track"><div className={`bar-fill ${row.className}`} style={{ width: `${row.target > 0 ? Math.min(100, (row.value / row.target) * 100) : 0}%` }} /></div></div>)}</div>;
 }
 
 function EmptyState({ icon: Icon, title, text, action, onClick }: { icon: LucideIcon; title: string; text: string; action?: string; onClick?: () => void }) {
@@ -419,7 +389,7 @@ function MacrosPage({
   };
   return (
     <>
-      <header className="page-header"><div><div className="eyebrow">Fuel log · Today</div><h1>Macros that make sense.</h1><p>Log the meal, then get back to living. No food guilt, no spreadsheet energy.</p></div><div className="header-date"><strong>{calories.toLocaleString()} kcal</strong>of {profile.calorieTarget.toLocaleString()} target</div></header>
+      <header className="page-header"><div><div className="eyebrow">Fuel log · Today</div><h1>Macros that make sense.</h1><p>Log the meal, then get back to living. No food guilt, no spreadsheet energy.</p></div><div className="header-date"><strong>{formatAmount(calories)} kcal</strong>of {profile.calorieTarget.toLocaleString()} target</div></header>
       <section className="panel targets-panel">
         <div className="panel-header">
           <div>
@@ -459,7 +429,7 @@ function MacrosPage({
         </section>
         <section className="panel">
           <div className="panel-header"><div><h3>Today’s totals</h3><p>{logs.length ? 'A quick read of your fuel.' : 'Ready when you are.'}</p></div><div className="section-label">{Math.min(100, Math.round((calories / profile.calorieTarget) * 100))}% target</div></div>
-           <div className="macro-summary"><div className="calorie-ring" style={{ '--calorie-progress': `${Math.min(100, (calories / profile.calorieTarget) * 100)}%` } as CSSProperties}><div className="calorie-ring-content"><strong>{calories.toLocaleString()}</strong><span>kcal in</span></div></div><MacroBars protein={protein} carbs={carbs} fat={fat} targets={profile} /></div>
+           <div className="macro-summary"><div className="calorie-ring" style={{ '--calorie-progress': `${Math.min(100, (calories / profile.calorieTarget) * 100)}%` } as CSSProperties}><div className="calorie-ring-content"><strong>{formatAmount(calories)}</strong><span>kcal in</span></div></div><MacroBars protein={protein} carbs={carbs} fat={fat} targets={profile} /></div>
         </section>
       </div>
       <section className="panel" style={{ marginTop: 22 }}><div className="panel-header"><div><h3>Today’s meals</h3><p>Tap the bin if something needs correcting.</p></div><div className="section-label">{logs.length} {logs.length === 1 ? 'entry' : 'entries'}</div></div>{logs.length ? <div className="log-list">{logs.map((meal) => <MealRow key={meal.id} meal={meal} onDelete={onDelete} />)}</div> : <EmptyState icon={Utensils} title="Your meal log is clear" text="Start with whatever is in front of you. The useful habit is noticing." />}</section>
@@ -728,7 +698,7 @@ function StepsPage({
           <button className="button-primary" onClick={startTracking} disabled={motionStatus === 'requesting'} data-testid="button-start-live-tracking"><Activity size={16} /> {motionStatus === 'requesting' ? 'Connecting…' : 'Start live tracking'}</button>
         )}
       </section>
-      <section className="panel" style={{ marginTop: 22 }}><div className="panel-header"><div><h3>Your week in motion</h3><p>A little visual proof that the days add up.</p></div><BarChart3 size={20} color="hsl(var(--secondary-foreground))" /></div><div className="weekly-bars">{days.map((day) => <div className={`day-column${day.key === todayKey() ? ' today' : ''}`} key={day.key} data-testid={`bar-steps-${day.key}`}><div className="day-bar-area"><div className="day-bar" style={{ height: `${Math.max(4, Math.min(100, (day.value / target) * 100))}%` }} /></div><span>{day.label}</span></div>)}</div><div className="helper-note" style={{ marginTop: 20 }}><Info size={16} /> <span>Tip: add a walk to your day in one tap, then leave your phone alone. The goal is a rhythm you can return to.</span></div></section>
+      <section className="panel" style={{ marginTop: 22 }}><div className="panel-header"><div><h3>Your week in motion</h3><p>A little visual proof that the days add up.</p></div><BarChart3 size={20} color="hsl(var(--secondary-foreground))" /></div><div className="weekly-bars">{days.map((day) => <div className={`day-column${day.key === todayKey() ? ' today' : ''}`} key={day.key} data-testid={`bar-steps-${day.key}`}><div className="day-bar-area"><div className="day-bar" style={{ height: `${day.value > 0 ? Math.max(4, Math.min(100, (day.value / target) * 100)) : 0}%` }} /></div><span>{day.label}</span></div>)}</div><div className="helper-note" style={{ marginTop: 20 }}><Info size={16} /> <span>Tip: add a walk to your day in one tap, then leave your phone alone. The goal is a rhythm you can return to.</span></div></section>
     </>
   );
 }
@@ -856,7 +826,21 @@ function PlanPage({ profile, onApplyPlan }: { profile: Profile; onApplyPlan: (pl
   );
 }
 
-function ProfileModal({ profile, onClose, onSave }: { profile: Profile; onClose: () => void; onSave: (profile: Profile) => void }) {
+function ProfileModal({
+  profile,
+  onClose,
+  onSave,
+  returnFocusRef,
+}: {
+  profile: Profile;
+  onClose: () => void;
+  onSave: (profile: Profile) => void;
+  returnFocusRef: { current: HTMLButtonElement | null };
+}) {
+  const modalRef = useRef<HTMLElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const [form, setForm] = useState({
     name: profile.name,
     goal: profile.goal,
@@ -866,6 +850,32 @@ function ProfileModal({ profile, onClose, onSave }: { profile: Profile; onClose:
     stepTarget: String(profile.stepTarget),
   });
   const [error, setError] = useState('');
+  useEffect(() => {
+    nameInputRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab' || !modalRef.current) return;
+      const focusable = modalRef.current.querySelectorAll<HTMLElement>('button, input, select');
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
+      else document.querySelector<HTMLButtonElement>('[data-testid="button-mobile-menu"]')?.focus();
+    };
+  }, [returnFocusRef]);
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const weight = numberValue(form.weight);
@@ -888,11 +898,11 @@ function ProfileModal({ profile, onClose, onSave }: { profile: Profile; onClose:
   };
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="modal" role="dialog" aria-modal="true" aria-labelledby="profile-title">
+      <section className="modal" ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="profile-title" aria-describedby="profile-description">
         <div className="modal-header">
           <div>
             <h2 id="profile-title">Your profile</h2>
-            <p>Make the targets fit your actual life.</p>
+            <p id="profile-description">Make the targets fit your actual life.</p>
           </div>
           <button className="button-icon button-quiet" onClick={onClose} aria-label="Close profile settings" data-testid="button-close-profile"><X size={17} /></button>
         </div>
@@ -900,7 +910,7 @@ function ProfileModal({ profile, onClose, onSave }: { profile: Profile; onClose:
           <div className="form-grid">
             <div className="field full">
               <label htmlFor="profile-name">Name</label>
-              <input id="profile-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} data-testid="input-profile-name" />
+              <input id="profile-name" ref={nameInputRef} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} data-testid="input-profile-name" />
             </div>
             <div className="field full">
               <label htmlFor="profile-goal">Main focus</label>
