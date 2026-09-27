@@ -25,6 +25,7 @@ import {
 import PremiumDashboard from './PremiumDashboard';
 import MovementPage from './MovementPage';
 import RestTimer from './RestTimer';
+import StrengthIntervalTimer from './StrengthIntervalTimer';
 import WaterIntakeCard from './WaterIntakeCard';
 import { useMotionSteps } from './useMotionSteps';
 
@@ -286,7 +287,8 @@ function App() {
                 }}
               />
             )}
-            {view === 'workout' && (
+            {/* Keep the timer mounted so a running interval survives switching sections. */}
+            <div hidden={view !== 'workout'}>
               <WorkoutPage
                 workouts={workouts}
                 onAdd={(set) => {
@@ -298,7 +300,7 @@ function App() {
                 }}
                 onDelete={(id) => { setWorkouts((existing) => existing.filter((item) => item.id !== id)); setToast('Set removed.'); }}
               />
-            )}
+            </div>
             {view === 'steps' && (
               <MovementPage
                 steps={steps}
@@ -568,6 +570,7 @@ function WorkoutPage({ workouts, onAdd, onDelete }: { workouts: WorkoutSet[]; on
           Across your training log
         </div>
       </header>
+      <StrengthIntervalTimer />
       <div className="workout-layout">
         <section className="panel">
           <div className="panel-header">

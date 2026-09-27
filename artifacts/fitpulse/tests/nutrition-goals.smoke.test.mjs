@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createServer } from 'node:net';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -353,6 +353,51 @@ test('custom nutrition goals update both views and persist after refresh', { tim
     assert.deepEqual(await readProgress(cdp, '[data-testid="card-macro-totals"]'), macrosProgress);
     assert.match(await evaluate(cdp, `document.querySelector('[data-testid="text-water-goal"]').textContent`), /50% of 3,000 ml goal/);
     assert.match(await evaluate(cdp, `document.querySelector('[data-testid="text-water-intake"]').textContent`), /1,500 ml/);
+
+    await navigateTo(cdp, 'workout');
+    await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector('[data-testid="section-strength-interval-timer"]'))`), 'interval timer module');
+    await click(cdp, '[data-testid="button-preset-tabata"]');
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="text-work"]').textContent`), '00:20');
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="text-rest"]').textContent`), '00:10');
+    await click(cdp, '[data-testid="button-increase-sets"]');
+    await click(cdp, '[data-testid="switch-skip-last-rest"]');
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="switch-skip-last-rest"]').getAttribute('aria-checked')`), 'false');
+    await click(cdp, '[data-testid="switch-skip-last-rest"]');
+    await setInput(cdp, '[data-testid="input-preset-name"]', 'My short intervals');
+    await click(cdp, '[data-testid="button-save-preset"]');
+    assert.match(await evaluate(cdp, `document.querySelector('.sit-custom').textContent`), /My short intervals/);
+    if (process.env.TIMER_SCREENSHOT_DIR) {
+      await cdp.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+      await evaluate(cdp, `document.querySelector('[data-testid="section-strength-interval-timer"]').scrollIntoView({ behavior: 'instant' }); window.scrollBy({ top: -85, behavior: 'instant' }); true`);
+      const image = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      await writeFile(path.join(process.env.TIMER_SCREENSHOT_DIR, 'fitpulse-strength-setup.png'), Buffer.from(image.data, 'base64'));
+    }
+    await click(cdp, '[data-testid="button-start-interval"]');
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="dialog-interval-timer"]').dataset.phase`), 'prepare');
+    if (process.env.TIMER_SCREENSHOT_DIR) {
+      await delay(450);
+      const image = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      await writeFile(path.join(process.env.TIMER_SCREENSHOT_DIR, 'fitpulse-strength-active.png'), Buffer.from(image.data, 'base64'));
+    }
+    await waitFor(async () => evaluate(cdp, `document.querySelector('[data-testid="dialog-interval-timer"]')?.dataset.phase === 'work'`), 'prepare countdown to enter work', 9000);
+    await waitFor(async () => evaluate(cdp, `getComputedStyle(document.querySelector('[data-testid="dialog-interval-timer"]')).backgroundColor === 'rgb(211, 228, 215)'`), 'sage work background');
+    await click(cdp, '[data-testid="button-pause-interval"]');
+    const pausedTime = await evaluate(cdp, `document.querySelector('[data-testid="text-interval-countdown"]').textContent`);
+    await delay(1100);
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="text-interval-countdown"]').textContent`), pausedTime, 'pause should stop the clock');
+    await click(cdp, '[data-testid="button-resume-interval"]');
+    await click(cdp, '[data-testid="button-skip-interval-set"]');
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="text-interval-set-progress"]').textContent`), '2 / 9');
+    await evaluate(cdp, `(() => { const originalNow = Date.now; Date.now = () => originalNow() + 21000; return true; })()`);
+    await waitFor(async () => evaluate(cdp, `document.querySelector('[data-testid="dialog-interval-timer"]')?.dataset.phase === 'rest'`), 'work countdown to enter rest');
+    await waitFor(async () => evaluate(cdp, `getComputedStyle(document.querySelector('[data-testid="dialog-interval-timer"]')).backgroundColor === 'rgb(242, 212, 199)'`), 'terracotta rest background');
+    await click(cdp, '[data-testid="button-reset-interval"]');
+    assert.equal(await evaluate(cdp, `Boolean(document.querySelector('[data-testid="dialog-interval-timer"]'))`), false);
+    const timerReload = cdp.waitForEvent('Page.loadEventFired');
+    await cdp.send('Page.reload');
+    await timerReload;
+    await navigateTo(cdp, 'workout');
+    assert.match(await evaluate(cdp, `document.querySelector('.sit-custom').textContent`), /My short intervals/, 'saved timer preset should survive refresh');
   } catch (error) {
     error.message += `\nVite output:\n${serverOutput}\nChromium output:\n${browserOutput}`;
     throw error;
