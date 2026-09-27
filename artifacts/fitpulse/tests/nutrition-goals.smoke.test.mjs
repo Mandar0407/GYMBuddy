@@ -579,6 +579,54 @@ test('custom nutrition goals update both views and persist after refresh', { tim
     for (const id of completedSetIds) await click(cdp, `[data-testid="row-workout-${id}"] [data-testid="button-delete-workout-${id}"]`);
     await navigateTo(cdp, 'insights');
     assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="text-advanced-workouts-completed"]').textContent`), '0', 'a workout with no remaining sets is not counted as completed');
+    await navigateTo(cdp, 'workout');
+    await click(cdp, '[data-testid="button-start-workout-strength"]');
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="text-workout-countdown"]').textContent`), '3');
+    if (process.env.TIMER_SCREENSHOT_DIR) {
+      const image = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      await writeFile(path.join(process.env.TIMER_SCREENSHOT_DIR, 'fitpulse-live-countdown.png'), Buffer.from(image.data, 'base64'));
+    }
+    await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector('[data-testid="screen-live-workout"]'))`), 'live strength screen after countdown', 6000);
+    if (process.env.TIMER_SCREENSHOT_DIR) {
+      const image = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      await writeFile(path.join(process.env.TIMER_SCREENSHOT_DIR, 'fitpulse-live-strength.png'), Buffer.from(image.data, 'base64'));
+    }
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="text-live-distance"]').textContent`), '—', 'strength does not invent distance');
+    await delay(250);
+    await click(cdp, '[data-testid="button-pause-resume-workout"]');
+    const workoutPausedAt = await evaluate(cdp, `document.querySelector('[data-testid="text-live-elapsed"]').textContent`);
+    await delay(250);
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="text-live-elapsed"]').textContent`), workoutPausedAt);
+    const liveReload = cdp.waitForEvent('Page.loadEventFired');
+    await cdp.send('Page.reload');
+    await liveReload;
+    await waitFor(async () => evaluate(cdp, `document.querySelector('[data-testid="status-live-workout"]')?.textContent === 'PAUSED'`), 'paused session recovery');
+    await click(cdp, '[data-testid="button-pause-resume-workout"]');
+    await delay(250);
+    assert.notEqual(await evaluate(cdp, `document.querySelector('[data-testid="text-live-elapsed"]').textContent`), workoutPausedAt);
+    await click(cdp, '[data-testid="button-end-workout"]');
+    await click(cdp, '[data-testid="button-confirm-end-workout"]');
+    await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector('[data-testid="section-workout-session-history"]'))`), 'Movement session history after ending');
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="section-workout-session-history"]').textContent`), /Traditional Strength Training/);
+    const historyReload = cdp.waitForEvent('Page.loadEventFired');
+    await cdp.send('Page.reload');
+    await historyReload;
+    await navigateTo(cdp, 'steps');
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="section-workout-session-history"]').textContent`), /Traditional Strength Training/, 'completed session persists after refresh');
+    await navigateTo(cdp, 'insights');
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="text-advanced-workouts-completed"]').textContent`), '1', 'live completed session counts as a workout');
+    await navigateTo(cdp, 'steps');
+    await click(cdp, '[data-testid="button-start-workout-outdoor-walk"]');
+    await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector('[data-testid="screen-live-workout"]'))`), 'live walk screen after countdown', 6000);
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="text-live-distance"]').textContent`), '—', 'unsupported motion does not fabricate distance');
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="text-live-active-calories"]').textContent`), '—', 'unsupported motion does not fabricate calories');
+    if (process.env.TIMER_SCREENSHOT_DIR) {
+      const image = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      await writeFile(path.join(process.env.TIMER_SCREENSHOT_DIR, 'fitpulse-live-walk.png'), Buffer.from(image.data, 'base64'));
+    }
+    await click(cdp, '[data-testid="button-end-workout"]');
+    await click(cdp, '[data-testid="button-confirm-end-workout"]');
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="section-workout-session-history"]').textContent`), /Outdoor Walk/);
   } catch (error) {
     error.message += `\nVite output:\n${serverOutput}\nChromium output:\n${browserOutput}`;
     throw error;

@@ -36,6 +36,8 @@ import PRCelebration from './PRCelebration';
 import { calculatedOneRm } from './strengthMath';
 import { useMotionSteps } from './useMotionSteps';
 import { usePairedMovement } from './usePairedMovement';
+import { useWorkoutSessions, workoutMetrics, type WorkoutKind } from './useWorkoutSessions';
+import { LiveWorkoutOverlay, WorkoutCountdown, WorkoutSelectionCards } from './LiveWorkoutUI';
 
 type View = 'dashboard' | 'macros' | 'workout' | 'steps' | 'insights' | 'plan';
 type Profile = { name: string; goal: string; weight: number; height: number; calorieTarget: number; proteinTarget: number; carbsTarget: number; fatTarget: number; stepTarget: number };
@@ -203,6 +205,8 @@ function App() {
   const [storageError, setStorageError] = useState(false);
   const [currentDate, setCurrentDate] = useState(todayKey);
   const paired = usePairedMovement();
+  const liveWorkouts = useWorkoutSessions();
+  const workoutStartedMotionRef = useRef(false);
   const recordSteps = (amount: number) => {
     const now = new Date();
     const day = dateKey(now);
@@ -216,12 +220,17 @@ function App() {
     setCurrentDate(day);
   };
   const motion = useMotionSteps(() => {
+    liveWorkouts.recordStep();
     if (!paired.key) recordSteps(1);
   });
   useEffect(() => {
-    if (paired.key) motion.stop();
+    if (paired.key && !liveWorkouts.active && !liveWorkouts.countdown) motion.stop();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paired.key]);
+  useEffect(() => {
+    if (motion.status === 'active') liveWorkouts.markSensorReady();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [motion.status, liveWorkouts.active?.id]);
   useEffect(() => {
     if (!paired.key || !paired.data) return;
     const { goal, weightKg, strideCm: syncedStride } = paired.data;
@@ -272,6 +281,35 @@ function App() {
     setView(nextView);
     setMobileNavOpen(false);
     window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 0);
+  };
+  const startWorkout = (kind: WorkoutKind) => {
+    if (liveWorkouts.active || liveWorkouts.countdown) return;
+    workoutStartedMotionRef.current = kind !== 'strength' && motion.status !== 'active';
+    if (workoutStartedMotionRef.current) void motion.start();
+    liveWorkouts.start(kind, strideCm, paired.data?.weightKg ?? profile.weight);
+  };
+  const cancelWorkoutCountdown = () => {
+    liveWorkouts.cancelCountdown();
+    if (workoutStartedMotionRef.current) motion.stop();
+    workoutStartedMotionRef.current = false;
+  };
+  const pauseWorkout = () => {
+    liveWorkouts.pause();
+    if (workoutStartedMotionRef.current) motion.stop();
+  };
+  const resumeWorkout = () => {
+    if (liveWorkouts.active?.kind !== 'strength' && motion.status !== 'active') {
+      workoutStartedMotionRef.current = true;
+      void motion.start();
+    }
+    liveWorkouts.resume();
+  };
+  const endWorkout = () => {
+    if (!liveWorkouts.end()) return;
+    if (workoutStartedMotionRef.current) motion.stop();
+    workoutStartedMotionRef.current = false;
+    navigate('steps');
+    setToast('Workout saved to your Movement history.');
   };
 
   const todayMacros = macros.filter((meal) => meal.date === currentDate);
@@ -394,6 +432,9 @@ function App() {
             {/* Keep the timer mounted so a running interval survives switching sections. */}
             <div hidden={view !== 'workout'}>
               <WorkoutPage
+                showLauncher={view === 'workout'}
+                onStartWorkout={startWorkout}
+                workoutActive={!!liveWorkouts.active || !!liveWorkouts.countdown}
                 workouts={workouts}
                 completedWorkouts={completedWorkouts}
                 onAdd={(set) => {
@@ -420,6 +461,9 @@ function App() {
             </div>
             {view === 'steps' && (
               <MovementPage
+                onStartWorkout={startWorkout}
+                workoutActive={!!liveWorkouts.active || !!liveWorkouts.countdown}
+                workoutSessions={liveWorkouts.sessions}
                 steps={visibleSteps}
                 hourlySteps={paired.key && paired.data?.days.some((day) => day.date === currentDate)
                   ? paired.nativeDates.has(currentDate) ? paired.hourly[currentDate]
@@ -466,7 +510,7 @@ function App() {
                   onNavigate={navigate}
                 />
                 <AdvancedAnalytics currentDate={currentDate} meals={macros} steps={visibleSteps}
-                  workouts={workouts} completedWorkouts={completedWorkouts} weightHistory={weightHistory} calorieTarget={profile.calorieTarget}
+                  workouts={workouts} completedWorkouts={[...completedWorkouts, ...liveWorkouts.sessions.map((session) => ({ date: dateKey(new Date(session.endedAt)) }))]} weightHistory={weightHistory} calorieTarget={profile.calorieTarget}
                   proteinTarget={profile.proteinTarget}
                   onLogWeight={(weightKg) => {
                     const next = { ...weightHistory, [todayKey()]: weightKg };
@@ -505,6 +549,25 @@ function App() {
       {prCelebration && <PRCelebration exercise={prCelebration.set.exercise} estimatedOneRm={prCelebration.set.estimatedOneRm}
         weight={prCelebration.set.weight} oneRmRecord={prCelebration.oneRmRecord} weightRecord={prCelebration.weightRecord}
         onClose={() => setPrCelebration(null)} />}
+      {liveWorkouts.countdown && <WorkoutCountdown kind={liveWorkouts.countdown.kind}
+        count={liveWorkouts.countdownNumber} onCancel={cancelWorkoutCountdown} />}
+      {liveWorkouts.active && <LiveWorkoutOverlay
+        kind={liveWorkouts.active.kind} elapsedMs={liveWorkouts.elapsedMs}
+        {...workoutMetrics(liveWorkouts.active, liveWorkouts.elapsedMs, liveWorkouts.active.sensorSeen || motion.status === 'active')}
+        steps={liveWorkouts.active.steps} isPaused={liveWorkouts.active.runningSince === null}
+        motionNote={liveWorkouts.active.kind === 'strength'
+          ? 'Energy is estimated from workout time and your saved body weight; distance and pace do not apply to strength training.'
+          : liveWorkouts.active.runningSince === null
+            ? 'Workout paused. Tap Resume to reconnect motion tracking and continue.'
+            : motion.status === 'active'
+              ? paired.key
+                ? 'Motion sensor connected. Session steps stay in this browser; paired daily steps come from your phone.'
+                : `Motion sensor connected. Distance uses your ${liveWorkouts.active.strideCm} cm stride estimate.`
+              : motion.status === 'requesting'
+                ? 'Waiting for motion readings. Distance and pace will appear once the sensor connects.'
+                : 'Motion data is unavailable. Time is still tracked, but distance and pace cannot be estimated without detected steps.'}
+        onPause={pauseWorkout} onResume={resumeWorkout} onEnd={endWorkout} />}
+      {liveWorkouts.error && <div className="lw-storage-error" role="alert" data-testid="error-live-workout">{liveWorkouts.error}</div>}
       {toast && <div className={`fp-toast${restSession ? ' fp-toast-with-rest' : ''}`} role="status" data-testid="status-toast"><Check size={16} /> {toast}</div>}
     </div>
   );
@@ -692,9 +755,10 @@ function Field({ id, label, suffix, value, onChange, placeholder }: { id: string
   return <div className="field"><label htmlFor={id}>{label} <span style={{ color: 'hsl(var(--muted-foreground))', fontWeight: 500 }}>({suffix})</span></label><input id={id} type="number" min="0" step="1" value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} data-testid={`input-${id}`} /></div>;
 }
 
-function WorkoutPage({ workouts, completedWorkouts, onAdd, onDelete, onFinishWorkout }: {
+function WorkoutPage({ workouts, completedWorkouts, onAdd, onDelete, onFinishWorkout, showLauncher, onStartWorkout, workoutActive }: {
   workouts: WorkoutSet[]; completedWorkouts: CompletedWorkout[];
   onAdd: (set: WorkoutSet) => void; onDelete: (id: string) => void; onFinishWorkout: (setIds: string[]) => void;
+  showLauncher: boolean; onStartWorkout: (kind: WorkoutKind) => void; workoutActive: boolean;
 }) {
   const [exercise, setExercise] = useState('Back squat');
   const [weight, setWeight] = useState('');
@@ -740,6 +804,7 @@ function WorkoutPage({ workouts, completedWorkouts, onAdd, onDelete, onFinishWor
           Across your training log
         </div>
       </header>
+      {showLauncher && <WorkoutSelectionCards compact onStart={onStartWorkout} disabled={workoutActive} />}
       <StrengthIntervalTimer />
       <div className="workout-finish-bar" data-testid="section-complete-workout">
         <div><strong>{pendingSets.length} {pendingSets.length === 1 ? 'set' : 'sets'} in this workout</strong><span>{completedToday > 0 ? `${completedToday} completed ${completedToday === 1 ? 'workout' : 'workouts'} logged today.` : 'Mark a workout complete after logging its sets.'}</span></div>

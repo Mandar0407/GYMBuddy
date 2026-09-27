@@ -1,8 +1,13 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { Activity, BarChart3, Check, Info, Plus, RotateCcw, Settings2, X } from 'lucide-react';
 import type { MotionStatus } from './useMotionSteps';
+import { WorkoutSelectionCards, WorkoutSessionHistory } from './LiveWorkoutUI';
+import type { WorkoutHistoryEntry, WorkoutKind } from './useWorkoutSessions';
 
 type Props = {
+  onStartWorkout: (kind: WorkoutKind) => void;
+  workoutActive: boolean;
+  workoutSessions: WorkoutHistoryEntry[];
   steps: Record<string, number>;
   hourlySteps: number[];
   todaySteps: number;
@@ -54,6 +59,7 @@ function hourLabel(hour: number) {
 }
 
 export default function MovementPage({
+  onStartWorkout, workoutActive, workoutSessions,
   steps, hourlySteps, todaySteps, currentDate, target, weightKg, heightCm, strideCm, strideOverrideCm,
   motionStatus, storageError, pairedKey, pairedError, pairedBusy, onPair, onStartTracking, onStopTracking, onChange, onSaveSettings,
 }: Props) {
@@ -100,6 +106,8 @@ export default function MovementPage({
         <div className="header-date"><strong data-testid="text-step-progress">{progress}% of goal</strong>{target.toLocaleString()} steps planned</div>
       </header>
       {storageError && <p className="movement-storage-error" role="alert">This browser is blocking local storage. Your changes will not survive a refresh until storage is enabled.</p>}
+      <WorkoutSelectionCards onStart={onStartWorkout} disabled={workoutActive} />
+      <WorkoutSessionHistory sessions={workoutSessions} />
       <section className="panel" style={{ marginBottom: 22, padding: 22 }}>
         <div className="section-label">FitPulse mobile</div>
         <h3>Keep your steps together</h3>
