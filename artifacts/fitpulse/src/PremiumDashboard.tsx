@@ -163,8 +163,8 @@ export default function PremiumDashboard({
         <header className="fp-heading">
           <div>
             <div className="fp-date-kicker"><span className="fp-live-dot" /> TODAY, {today.toUpperCase()}</div>
-            <h1>A good day<br className="fp-mobile-break" /> is in motion, {profile.name.split(' ')[0]}.</h1>
-            <p>Here’s what you’ve already made time for.</p>
+            <h1><span>Your day.</span><span className="fp-heading-accent">In progress.</span></h1>
+            <p data-testid="text-dashboard-greeting"><strong>{profile.name.split(' ')[0]},</strong> see your fuel, movement and strength at a glance.</p>
           </div>
           <div className="fp-date-stamp"><span>YOUR DAILY CHECK-IN</span><strong data-testid="text-today-date">{today}</strong></div>
         </header>
