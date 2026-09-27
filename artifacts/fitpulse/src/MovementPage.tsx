@@ -9,13 +9,15 @@ type Props = {
   currentDate: string;
   target: number;
   weightKg: number;
+  heightCm: number;
   strideCm: number;
+  strideOverrideCm: number | null;
   motionStatus: MotionStatus;
   storageError: boolean;
   onStartTracking: () => void;
   onStopTracking: () => void;
   onChange: (amount: number) => void;
-  onSaveSettings: (goal: number, stride: number, weight: number) => void;
+  onSaveSettings: (goal: number, strideOverride: number | null, weight: number, height: number) => void;
 };
 
 function dateKey(date: Date) {
@@ -48,7 +50,7 @@ function hourLabel(hour: number) {
 }
 
 export default function MovementPage({
-  steps, hourlySteps, todaySteps, currentDate, target, weightKg, strideCm,
+  steps, hourlySteps, todaySteps, currentDate, target, weightKg, heightCm, strideCm, strideOverrideCm,
   motionStatus, storageError, onStartTracking, onStopTracking, onChange, onSaveSettings,
 }: Props) {
   const [customSteps, setCustomSteps] = useState('');
@@ -190,24 +192,30 @@ export default function MovementPage({
         </div>
         <div className="helper-note" style={{ marginTop: 20 }}><Info size={16} /> <span>Today's bar updates from quick adds, custom entries, and live tracking. History stays saved on this device.</span></div>
       </section>
-      {settingsOpen && <MovementSettingsModal target={target} strideCm={strideCm} weightKg={weightKg} onClose={() => setSettingsOpen(false)} onSave={(goal, stride, weight) => { onSaveSettings(goal, stride, weight); setSettingsOpen(false); }} returnFocusRef={settingsButtonRef} />}
+      {settingsOpen && <MovementSettingsModal target={target} heightCm={heightCm} strideOverrideCm={strideOverrideCm} weightKg={weightKg} onClose={() => setSettingsOpen(false)} onSave={(goal, strideOverride, weight, height) => { onSaveSettings(goal, strideOverride, weight, height); setSettingsOpen(false); }} returnFocusRef={settingsButtonRef} />}
     </>
   );
 }
 
 function MovementSettingsModal({
-  target, strideCm, weightKg, onClose, onSave, returnFocusRef,
+  target, heightCm, strideOverrideCm, weightKg, onClose, onSave, returnFocusRef,
 }: {
   target: number;
-  strideCm: number;
+  heightCm: number;
+  strideOverrideCm: number | null;
   weightKg: number;
   onClose: () => void;
-  onSave: (goal: number, stride: number, weight: number) => void;
+  onSave: (goal: number, strideOverride: number | null, weight: number, height: number) => void;
   returnFocusRef: { current: HTMLButtonElement | null };
 }) {
   const [goal, setGoal] = useState(String(target));
-  const [stride, setStride] = useState(String(strideCm));
+  const [height, setHeight] = useState(String(heightCm));
+  const [strideOverride, setStrideOverride] = useState<string | null>(strideOverrideCm === null ? null : String(strideOverrideCm));
   const [weight, setWeight] = useState(String(weightKg));
+  const heightValue = Number(height);
+  const autoStride = height !== '' && Number.isFinite(heightValue) && heightValue >= 100 && heightValue <= 230
+    ? Math.round(heightValue * 0.415) : null;
+  const stride = strideOverride ?? (autoStride === null ? '' : String(autoStride));
   const [error, setError] = useState('');
   const dialogRef = useRef<HTMLElement>(null);
   const goalRef = useRef<HTMLInputElement>(null);
@@ -237,13 +245,15 @@ function MovementSettingsModal({
     const goalValue = Number(goal);
     const strideValue = Number(stride);
     const weightValue = Number(weight);
+    const heightValue = Number(height);
     if (!Number.isSafeInteger(goalValue) || goalValue < 1000 || goalValue > 100000 ||
-      !Number.isFinite(strideValue) || strideValue < 30 || strideValue > 150 ||
+      stride === '' || !Number.isFinite(strideValue) || strideValue < 30 || strideValue > 150 ||
+      height === '' || !Number.isFinite(heightValue) || heightValue < 100 || heightValue > 230 ||
       !Number.isFinite(weightValue) || weightValue < 20 || weightValue > 500) {
-      setError('Use a goal of 1,000–100,000 steps, a stride of 30–150 cm, and a weight of 20–500 kg.');
+      setError('Use a goal of 1,000–100,000 steps, a height of 100–230 cm, a stride of 30–150 cm, and a weight of 20–500 kg.');
       return;
     }
-    onSave(goalValue, strideValue, weightValue);
+    onSave(goalValue, strideOverride === null ? null : strideValue, weightValue, heightValue);
   };
 
   return (
@@ -256,10 +266,18 @@ function MovementSettingsModal({
         <form onSubmit={submit} noValidate>
           <div className="form-grid">
             <div className="field full"><label htmlFor="movement-daily-goal">Daily step goal</label><input id="movement-daily-goal" ref={goalRef} type="number" min="1000" max="100000" step="1" value={goal} onChange={(event) => { setGoal(event.target.value); setError(''); }} data-testid="input-movement-goal" /></div>
-            <div className="field"><label htmlFor="movement-stride">Stride length (cm)</label><input id="movement-stride" type="number" min="30" max="150" step="0.1" value={stride} onChange={(event) => { setStride(event.target.value); setError(''); }} data-testid="input-movement-stride" /></div>
+            <div className="field"><label htmlFor="movement-height">Height (cm)</label><input id="movement-height" type="number" min="100" max="230" step="0.1" value={height} onChange={(event) => { setHeight(event.target.value); setError(''); }} data-testid="input-movement-height" /></div>
             <div className="field"><label htmlFor="movement-weight">Body weight (kg)</label><input id="movement-weight" type="number" min="20" max="500" step="0.1" value={weight} onChange={(event) => { setWeight(event.target.value); setError(''); }} data-testid="input-movement-weight" /></div>
+            <div className="field full">
+              <label htmlFor="movement-stride">Stride length (cm)</label>
+              <div className="movement-stride-row">
+                <input id="movement-stride" type="number" min="30" max="150" step="0.1" value={stride} onChange={(event) => { setStrideOverride(event.target.value); setError(''); }} aria-describedby="movement-stride-hint" data-testid="input-movement-stride" />
+                <button className="button-quiet" type="button" onClick={() => { setStrideOverride(null); setError(''); }} data-testid="button-reset-stride-auto">Reset to Auto</button>
+              </div>
+              <small className="field-hint" id="movement-stride-hint">Auto-calculated based on height (Height × 0.415). You can override this value manually.</small>
+            </div>
           </div>
-          <p className="field-hint movement-form-hint">Active calories use an approximate 0.53 kcal per kg per km. Weight also updates your profile.</p>
+          <p className="field-hint movement-form-hint">Active calories use an approximate 0.53 kcal per kg per km. Height and weight also update your profile.</p>
           {error && <p className="error-text" style={{ marginTop: 13 }} role="alert">{error}</p>}
           <div className="form-actions"><button className="button-quiet" type="button" onClick={onClose} data-testid="button-cancel-movement-settings">Cancel</button><button className="button-primary" type="submit" data-testid="button-save-movement-settings"><Check size={15} /> Save settings</button></div>
         </form>

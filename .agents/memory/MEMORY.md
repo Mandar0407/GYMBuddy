@@ -3,3 +3,4 @@
 - [Motion session resume](motion-session-resume.md) — retain tracking intent after reload, but require a tap before claiming the sensor is live again.
 - [Centered FitPulse shell](centered-fitpulse-shell.md) — keep narrow-layout behavior on wide screens without resetting component spacing.
 - [Headless browser focus](headless-browser-focus.md) — activate the CDP tab before checking CSS focus states; activeElement alone can mislead.
+- [Stride auto-migration](stride-auto-migration.md) — legacy saved stride has no override marker; distinguish the old default from likely manual values.

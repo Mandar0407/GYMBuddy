@@ -48,6 +48,7 @@ const STORAGE = {
   steps: 'fitpulse-steps',
   stepHours: 'fitpulse-step-hours',
   stride: 'fitpulse-stride-cm',
+  strideOverride: 'fitpulse-stride-override-cm',
   water: 'fitpulse-water',
   waterGoal: 'fitpulse-water-goal',
 };
@@ -94,6 +95,15 @@ function readStorage<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function readStrideOverride(): number | null {
+  const saved = readStorage<unknown>(STORAGE.strideOverride, undefined);
+  if (saved === null) return null;
+  if (typeof saved === 'number' && Number.isFinite(saved) && saved >= 30 && saved <= 150) return saved;
+  // The previous app stored its default 74 cm as though it were a manual setting.
+  const legacy = readStorage<unknown>(STORAGE.stride, null);
+  return typeof legacy === 'number' && legacy !== 74 && Number.isFinite(legacy) && legacy >= 30 && legacy <= 150 ? legacy : null;
 }
 
 function readHourlySteps(): HourlyStepsMap {
@@ -154,10 +164,8 @@ function App() {
     const saved = readStorage<number>(STORAGE.waterGoal, 2000);
     return Number.isInteger(saved) && saved >= 100 && saved <= 20000 ? saved : 2000;
   });
-  const [strideCm, setStrideCm] = useState(() => {
-    const saved = readStorage<number>(STORAGE.stride, 74);
-    return Number.isFinite(saved) && saved >= 30 && saved <= 150 ? saved : 74;
-  });
+  const [strideOverrideCm, setStrideOverrideCm] = useState<number | null>(readStrideOverride);
+  const strideCm = strideOverrideCm ?? Math.round(profile.height * 0.415);
   const [toast, setToast] = useState('');
   const [restSession, setRestSession] = useState<{ id: string; exercise: string; setType: SetType } | null>(null);
   const [storageError, setStorageError] = useState(false);
@@ -201,7 +209,7 @@ function App() {
   useEffect(() => { persist(STORAGE.stepHours, stepHours); }, [stepHours]);
   useEffect(() => { persist(STORAGE.water, waterHistory); }, [waterHistory]);
   useEffect(() => { persist(STORAGE.waterGoal, waterGoal); }, [waterGoal]);
-  useEffect(() => { persist(STORAGE.stride, strideCm); }, [strideCm]);
+  useEffect(() => { persist(STORAGE.strideOverride, strideOverrideCm); }, [strideOverrideCm]);
   useEffect(() => {
     if (!toast) return undefined;
     const timer = window.setTimeout(() => setToast(''), 3200);
@@ -346,7 +354,9 @@ function App() {
                 currentDate={currentDate}
                 target={profile.stepTarget}
                 weightKg={profile.weight}
+                heightCm={profile.height}
                 strideCm={strideCm}
+                strideOverrideCm={strideOverrideCm}
                 motionStatus={motion.status}
                 storageError={storageError || motion.storageError}
                 onStartTracking={motion.start}
@@ -355,9 +365,9 @@ function App() {
                   recordSteps(amount);
                   setToast(amount < 0 ? 'Steps reset for today.' : `${amount.toLocaleString()} steps added.`);
                 }}
-                onSaveSettings={(goal, stride, weight) => {
-                  setProfile((existing) => ({ ...existing, stepTarget: goal, weight }));
-                  setStrideCm(stride);
+                onSaveSettings={(goal, strideOverride, weight, height) => {
+                  setProfile((existing) => ({ ...existing, stepTarget: goal, weight, height }));
+                  setStrideOverrideCm(strideOverride);
                   setToast('Movement settings saved.');
                 }}
               />

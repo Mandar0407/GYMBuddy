@@ -465,6 +465,10 @@
 .helper-note svg { flex-shrink: 0; margin-top: 1px; }
 .movement-modal { max-height: calc(100dvh - 40px); overflow-y: auto; }
 .movement-form-hint { margin-top: 14px; line-height: 1.5; }
+.movement-stride-row { display: flex; align-items: stretch; gap: 8px; }
+.movement-stride-row input { min-width: 0; flex: 1; }
+.movement-stride-row button { flex: 0 0 auto; padding-inline: 12px; font-size: 11px; }
+.movement-stride-row + .field-hint { display: block; margin-top: 7px; line-height: 1.4; }
 
 .modal-backdrop { position: fixed; inset: 0; background: rgba(21,28,34,.5); z-index: 30; display: grid; place-items: center; padding: 20px; animation: rise-in .2s ease both; }
 .modal { width: min(100%, 460px); background: hsl(var(--card)); color: hsl(var(--foreground)); border: 1px solid hsl(var(--card-border)); border-radius: 20px; padding: 24px; box-shadow: var(--shadow-lift); }

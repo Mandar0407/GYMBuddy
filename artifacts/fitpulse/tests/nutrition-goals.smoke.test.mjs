@@ -378,6 +378,31 @@ test('custom nutrition goals update both views and persist after refresh', { tim
 
     await navigateTo(cdp, 'steps');
     await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector('[data-testid="chart-hourly-steps"]'))`), 'hourly activity chart');
+    await click(cdp, '[data-testid="button-edit-movement-goal"]');
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="input-movement-stride"]').value`), '71');
+    assert.match(await evaluate(cdp, `document.querySelector('#movement-stride-hint').textContent`), /Height × 0\.415/);
+    await setInput(cdp, '[data-testid="input-movement-height"]', 180);
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="input-movement-stride"]').value`), '75');
+    await click(cdp, '[data-testid="button-cancel-movement-settings"]');
+
+    await click(cdp, '[data-testid="button-mobile-menu"]');
+    await click(cdp, '[data-testid="button-mobile-profile"]');
+    await setInput(cdp, '[data-testid="input-profile-height"]', 200);
+    await click(cdp, '[data-testid="button-save-profile"]');
+    await click(cdp, '[data-testid="button-edit-movement-goal"]');
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="input-movement-height"]').value`), '200');
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="input-movement-stride"]').value`), '83');
+    await setInput(cdp, '[data-testid="input-movement-stride"]', 90);
+    await setInput(cdp, '[data-testid="input-movement-height"]', 190);
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="input-movement-stride"]').value`), '90', 'manual stride remains until reset');
+    await click(cdp, '[data-testid="button-save-movement-settings"]');
+    assert.match(await evaluate(cdp, `document.querySelector('.movement-estimate-note').textContent`), /90 cm stride/);
+    await click(cdp, '[data-testid="button-edit-movement-goal"]');
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="input-movement-height"]').value`), '190');
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="input-movement-stride"]').value`), '90');
+    await click(cdp, '[data-testid="button-reset-stride-auto"]');
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="input-movement-stride"]').value`), '79');
+    await click(cdp, '[data-testid="button-save-movement-settings"]');
     await click(cdp, '[data-testid="button-add-500-steps"]');
     await click(cdp, '[data-testid="button-add-1000-steps"]');
     await click(cdp, '[data-testid="button-add-2500-steps"]');
@@ -416,6 +441,10 @@ test('custom nutrition goals update both views and persist after refresh', { tim
     await stepsReload;
     await navigateTo(cdp, 'steps');
     await waitFor(async () => evaluate(cdp, `document.querySelector('[data-testid="text-step-total"]')?.textContent.includes('4,001')`), 'saved step total after refresh');
+    await click(cdp, '[data-testid="button-edit-movement-goal"]');
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="input-movement-height"]').value`), '190');
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="input-movement-stride"]').value`), '79', 'auto stride persists after reload');
+    await click(cdp, '[data-testid="button-cancel-movement-settings"]');
     assert.match(await evaluate(cdp, `document.querySelector('[data-testid="bar-hour-${currentHour}"]').getAttribute('aria-label')`), /4,001 steps/);
     assert.equal(await evaluate(cdp, `Boolean(document.querySelector('[data-testid="text-unassigned-steps"]'))`), false);
     await click(cdp, '[data-testid="button-reset-steps"]');
