@@ -134,7 +134,7 @@ export default function MovementPage({
         </div>
         <div className="motion-actions">
           {motionStatus === 'active' ? (
-            <button className="button-danger" type="button" onClick={onStopTracking} data-testid="button-stop-live-tracking"><Activity size={16} /> Stop tracking</button>
+            <button className="button-danger motion-button-live" type="button" onClick={onStopTracking} aria-label="Stop live tracking" data-testid="button-stop-live-tracking"><span className="motion-live-dot" aria-hidden="true" /> Live · Stop tracking</button>
           ) : (
             <>
               <button className="button-primary" type="button" onClick={onStartTracking} disabled={motionStatus === 'requesting'} data-testid="button-start-live-tracking"><Activity size={16} /> {motionStatus === 'requesting' ? 'Connecting…' : motionStatus === 'paused' ? 'Resume live tracking' : 'Start live tracking'}</button>

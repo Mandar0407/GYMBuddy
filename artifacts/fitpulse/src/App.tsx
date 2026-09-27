@@ -9,10 +9,12 @@ import {
   ChevronDown,
   CircleUserRound,
   Dumbbell,
+  Droplets,
   Footprints,
   Home,
   Info,
   Menu,
+  Minus,
   Plus,
   Sparkles,
   Target,
@@ -24,17 +26,19 @@ import {
 } from 'lucide-react';
 import PremiumDashboard from './PremiumDashboard';
 import MovementPage from './MovementPage';
+import RestTimer from './RestTimer';
 import { useMotionSteps } from './useMotionSteps';
 
 type View = 'dashboard' | 'macros' | 'workout' | 'steps' | 'plan';
 type Profile = { name: string; goal: string; weight: number; height: number; calorieTarget: number; proteinTarget: number; carbsTarget: number; fatTarget: number; stepTarget: number };
 type MacroLog = { id: string; meal: string; calories: number; protein: number; carbs: number; fat: number; time: string; date?: string };
-type WorkoutSet = { id: string; exercise: string; weight: number; reps: number; estimatedOneRm: number; date: string };
+type SetType = 'warmup' | 'working' | 'drop';
+type WorkoutSet = { id: string; exercise: string; weight: number; reps: number; estimatedOneRm: number; date: string; setType?: SetType };
 type StepsMap = Record<string, number>;
 type PlanGoal = 'cut' | 'maintain' | 'bulk';
 type Sex = 'female' | 'male';
 type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'high';
-type PlanResult = { calories: number; protein: number; carbs: number; fat: number; bmi: number; bmiLabel: string; goalLabel: string };
+type PlanResult = { calories: number; protein: number; carbs: number; fat: number; bmi: number; bmiLabel: string; goalLabel: string; weight: number; height: number };
 
 const STORAGE = {
   profile: 'fitpulse-profile',
@@ -42,6 +46,7 @@ const STORAGE = {
   workouts: 'fitpulse-workouts',
   steps: 'fitpulse-steps',
   stride: 'fitpulse-stride-cm',
+  water: 'fitpulse-water',
 };
 
 const defaultProfile: Profile = {
@@ -130,11 +135,13 @@ function App() {
   const [macros, setMacros] = useState<MacroLog[]>(readMeals);
   const [workouts, setWorkouts] = useState<WorkoutSet[]>(() => readStorage(STORAGE.workouts, []));
   const [steps, setSteps] = useState<StepsMap>(() => readStorage(STORAGE.steps, {}));
+  const [waterHistory, setWaterHistory] = useState<StepsMap>(() => readStorage(STORAGE.water, {}));
   const [strideCm, setStrideCm] = useState(() => {
     const saved = readStorage<number>(STORAGE.stride, 74);
     return Number.isFinite(saved) && saved >= 30 && saved <= 150 ? saved : 74;
   });
   const [toast, setToast] = useState('');
+  const [restSession, setRestSession] = useState<{ id: string; exercise: string; setType: SetType } | null>(null);
   const [storageError, setStorageError] = useState(false);
   const [currentDate, setCurrentDate] = useState(todayKey);
   const motion = useMotionSteps(() => {
@@ -163,6 +170,7 @@ function App() {
   useEffect(() => { persist(STORAGE.macros, macros); }, [macros]);
   useEffect(() => { persist(STORAGE.workouts, workouts); }, [workouts]);
   useEffect(() => { persist(STORAGE.steps, steps); }, [steps]);
+  useEffect(() => { persist(STORAGE.water, waterHistory); }, [waterHistory]);
   useEffect(() => { persist(STORAGE.stride, strideCm); }, [strideCm]);
   useEffect(() => {
     if (!toast) return undefined;
@@ -178,6 +186,7 @@ function App() {
 
   const todayMacros = macros.filter((meal) => meal.date === currentDate);
   const todaySteps = steps[currentDate] ?? 0;
+  const todayWater = waterHistory[currentDate] ?? 0;
   const calories = todayMacros.reduce((total, item) => total + item.calories, 0);
   const protein = todayMacros.reduce((total, item) => total + item.protein, 0);
   const carbs = todayMacros.reduce((total, item) => total + item.carbs, 0);
@@ -256,6 +265,12 @@ function App() {
               <MacrosPage
                 profile={profile}
                 logs={todayMacros}
+                waterMl={todayWater}
+                onWaterChange={(amount) => {
+                  const day = todayKey();
+                  setWaterHistory((existing) => ({ ...existing, [day]: Math.max(0, (existing[day] ?? 0) + amount) }));
+                  setCurrentDate(day);
+                }}
                 onAdd={addMeal}
                 onDelete={(id) => { setMacros((existing) => existing.filter((item) => item.id !== id)); setToast('Meal removed.'); }}
                 onSaveTargets={(targets) => {
@@ -268,9 +283,11 @@ function App() {
               <WorkoutPage
                 workouts={workouts}
                 onAdd={(set) => {
-                  const previousBest = Math.max(0, ...workouts.filter((item) => item.exercise.toLowerCase() === set.exercise.toLowerCase()).map((item) => item.estimatedOneRm));
+                  const previous = workouts.filter((item) => item.exercise.trim().toLowerCase() === set.exercise.trim().toLowerCase());
+                  const previousBest = Math.max(0, ...previous.map((item) => item.estimatedOneRm));
                   setWorkouts((existing) => [set, ...existing]);
-                  setToast(set.estimatedOneRm > previousBest ? `New ${set.exercise} PR — ${set.estimatedOneRm} kg estimated 1RM.` : 'Set logged. Keep the momentum.');
+                  setRestSession({ id: set.id, exercise: set.exercise, setType: set.setType ?? 'working' });
+                  setToast(previous.length > 0 && set.estimatedOneRm > previousBest ? `New ${set.exercise} PR — ${set.estimatedOneRm} kg estimated 1RM.` : 'Set logged. Rest timer started.');
                 }}
                 onDelete={(id) => { setWorkouts((existing) => existing.filter((item) => item.id !== id)); setToast('Set removed.'); }}
               />
@@ -310,6 +327,8 @@ function App() {
                     proteinTarget: plan.protein,
                     carbsTarget: plan.carbs,
                     fatTarget: plan.fat,
+                    weight: plan.weight,
+                    height: plan.height,
                     goal: `${plan.goalLabel} focus`,
                   }));
                   setToast(`${plan.goalLabel} targets applied to your profile.`);
@@ -320,7 +339,8 @@ function App() {
         </main>
       </div>
       {profileOpen && <ProfileModal profile={profile} onClose={() => setProfileOpen(false)} onSave={saveProfile} returnFocusRef={profileTriggerRef} />}
-      {toast && <div className="fp-toast" role="status" data-testid="status-toast"><Check size={16} /> {toast}</div>}
+      {restSession && <RestTimer key={restSession.id} exercise={restSession.exercise} setType={restSession.setType} onDismiss={() => setRestSession(null)} />}
+      {toast && <div className={`fp-toast${restSession ? ' fp-toast-with-rest' : ''}`} role="status" data-testid="status-toast"><Check size={16} /> {toast}</div>}
     </div>
   );
 }
@@ -351,7 +371,26 @@ function MacroBars({ protein, carbs, fat, targets }: { protein: number; carbs: n
     { label: 'Carbs', value: carbs, target: targets.carbsTarget, className: 'bar-carbs' },
     { label: 'Fat', value: fat, target: targets.fatTarget, className: 'bar-fat' },
   ];
-  return <div className="macro-bars">{rows.map((row) => <div key={row.label}><div className="macro-bar-top"><span>{row.label}</span><strong>{formatAmount(row.value)}g <span>/ {formatAmount(row.target)}g</span></strong></div><div className="bar-track" data-testid={`progress-${row.label.toLowerCase()}`} role="progressbar" aria-label={`${row.label} progress`} aria-valuemin={0} aria-valuemax={row.target} aria-valuenow={Math.min(row.value, row.target)}><div className={`bar-fill ${row.className}`} style={{ width: `${row.target > 0 ? Math.min(100, (row.value / row.target) * 100) : 0}%` }} /></div></div>)}</div>;
+  return (
+    <div className="macro-bars">
+      {rows.map((row) => {
+        const percentage = row.target > 0 ? Math.round((row.value / row.target) * 100) : 0;
+        const difference = row.target - row.value;
+        return (
+          <div className="macro-meter" key={row.label}>
+            <div className="macro-bar-top">
+              <span className="macro-meter-label"><i className={`macro-swatch ${row.className}`} />{row.label}</span>
+              <strong>{formatAmount(row.value)}g <span>/ {formatAmount(row.target)}g</span></strong>
+            </div>
+            <div className="bar-track" data-testid={`progress-${row.label.toLowerCase()}`} role="progressbar" aria-label={`${row.label} progress`} aria-valuemin={0} aria-valuemax={row.target} aria-valuenow={Math.min(row.value, row.target)} aria-valuetext={`${formatAmount(row.value)} of ${formatAmount(row.target)} grams, ${percentage}% of target`}>
+              <div className={`bar-fill ${row.className}`} style={{ width: `${Math.min(100, percentage)}%` }} />
+            </div>
+            <div className="macro-meter-foot"><span data-testid={`text-${row.label.toLowerCase()}-progress`}>{percentage}% of goal</span><span>{difference >= 0 ? `${formatAmount(difference)}g left` : `${formatAmount(Math.abs(difference))}g over`}</span></div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function EmptyState({ icon: Icon, title, text, action, onClick }: { icon: LucideIcon; title: string; text: string; action?: string; onClick?: () => void }) {
@@ -365,12 +404,16 @@ function MealRow({ meal, onDelete }: { meal: MacroLog; onDelete?: (id: string) =
 function MacrosPage({
   profile,
   logs,
+  waterMl,
+  onWaterChange,
   onAdd,
   onDelete,
   onSaveTargets,
 }: {
   profile: Profile;
   logs: MacroLog[];
+  waterMl: number;
+  onWaterChange: (amount: number) => void;
   onAdd: (log: MacroLog) => void;
   onDelete: (id: string) => void;
   onSaveTargets: (targets: Pick<Profile, 'calorieTarget' | 'proteinTarget' | 'carbsTarget' | 'fatTarget'>) => void;
@@ -384,6 +427,14 @@ function MacrosPage({
     fat: String(profile.fatTarget),
   });
   const [targetError, setTargetError] = useState('');
+  useEffect(() => {
+    setTargetForm({
+      calories: String(profile.calorieTarget),
+      protein: String(profile.proteinTarget),
+      carbs: String(profile.carbsTarget),
+      fat: String(profile.fatTarget),
+    });
+  }, [profile.calorieTarget, profile.proteinTarget, profile.carbsTarget, profile.fatTarget]);
   const calories = logs.reduce((sum, item) => sum + item.calories, 0);
   const protein = logs.reduce((sum, item) => sum + item.protein, 0);
   const carbs = logs.reduce((sum, item) => sum + item.carbs, 0);
@@ -455,6 +506,23 @@ function MacrosPage({
         <section className="panel" data-testid="card-macro-totals">
           <div className="panel-header"><div><h3>Today’s totals</h3><p>{logs.length ? 'A quick read of your fuel.' : 'Ready when you are.'}</p></div><div className="section-label">{Math.min(100, Math.round((calories / profile.calorieTarget) * 100))}% target</div></div>
            <div className="macro-summary"><div className="calorie-ring" data-testid="progress-calories" role="progressbar" aria-label="Calories consumed" aria-valuemin={0} aria-valuemax={profile.calorieTarget} aria-valuenow={Math.min(calories, profile.calorieTarget)} style={{ '--calorie-progress': `${Math.min(100, (calories / profile.calorieTarget) * 100)}%` } as CSSProperties}><div className="calorie-ring-content"><strong>{formatAmount(calories)}</strong><span>kcal in</span></div></div><MacroBars protein={protein} carbs={carbs} fat={fat} targets={profile} /></div>
+           <div className="water-widget" data-testid="card-water-intake">
+             <div className="water-widget-heading">
+               <span className="water-widget-icon"><Droplets size={18} /></span>
+               <div><strong>Water intake</strong><small>Build the habit, one glass at a time.</small></div>
+               <span className="water-widget-total" data-testid="text-water-intake">{waterMl.toLocaleString()} <small>ml</small></span>
+             </div>
+             <div className="water-segments" role="progressbar" aria-label="Water intake" aria-valuemin={0} aria-valuemax={2000} aria-valuenow={Math.min(waterMl, 2000)} aria-valuetext={`${waterMl.toLocaleString()} of 2,000 milliliters`}>
+               {Array.from({ length: 8 }, (_, index) => <i key={index} className={index < Math.ceil(waterMl / 250) ? 'is-filled' : ''} />)}
+             </div>
+             <div className="water-widget-footer">
+               <span>250 ml per glass · 2,000 ml daily guide</span>
+               <div>
+                 <button type="button" className="button-quiet" onClick={() => onWaterChange(-250)} disabled={waterMl === 0} aria-label="Remove 250 milliliters of water" data-testid="button-remove-water"><Minus size={15} /> 250</button>
+                 <button type="button" className="button-primary" onClick={() => onWaterChange(250)} data-testid="button-add-water"><Plus size={15} /> Add 250 ml</button>
+               </div>
+             </div>
+           </div>
         </section>
       </div>
       <section className="panel" style={{ marginTop: 22 }}><div className="panel-header"><div><h3>Today’s meals</h3><p>Tap the bin if something needs correcting.</p></div><div className="section-label">{logs.length} {logs.length === 1 ? 'entry' : 'entries'}</div></div>{logs.length ? <div className="log-list">{logs.map((meal) => <MealRow key={meal.id} meal={meal} onDelete={onDelete} />)}</div> : <EmptyState icon={Utensils} title="Your meal log is clear" text="Start with whatever is in front of you. The useful habit is noticing." />}</section>
@@ -470,17 +538,26 @@ function WorkoutPage({ workouts, onAdd, onDelete }: { workouts: WorkoutSet[]; on
   const [exercise, setExercise] = useState('Back squat');
   const [weight, setWeight] = useState('');
   const [reps, setReps] = useState('');
+  const [setType, setSetType] = useState<SetType>('working');
   const [error, setError] = useState('');
   const currentDate = todayKey();
   const sorted = [...workouts].sort((a, b) => `${b.date}${b.id}`.localeCompare(`${a.date}${a.id}`));
+  const bestByExercise = new Map<string, number>();
+  const prIds = new Set<string>();
+  for (const item of [...sorted].reverse()) {
+    const key = item.exercise.trim().toLowerCase();
+    const previousBest = bestByExercise.get(key);
+    if (previousBest !== undefined && item.estimatedOneRm > previousBest) prIds.add(item.id);
+    bestByExercise.set(key, Math.max(previousBest ?? 0, item.estimatedOneRm));
+  }
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const numericWeight = numberValue(weight);
     const numericReps = numberValue(reps);
     if (!exercise.trim()) { setError('Name the exercise you worked on.'); return; }
-    if (numericWeight <= 0 || numericReps <= 0 || numericReps > 30) { setError('Use a weight above 0 and between 1–30 reps.'); return; }
+    if (numericWeight <= 0 || !Number.isSafeInteger(numericReps) || numericReps < 1 || numericReps > 30) { setError('Use a weight above 0 and between 1–30 whole reps.'); return; }
     const estimatedOneRm = Math.round(numericWeight * (1 + numericReps / 30));
-    onAdd({ id: `${Date.now()}`, exercise: exercise.trim(), weight: numericWeight, reps: numericReps, estimatedOneRm, date: currentDate });
+    onAdd({ id: `${Date.now()}-${crypto.randomUUID()}`, exercise: exercise.trim(), weight: numericWeight, reps: numericReps, estimatedOneRm, date: currentDate, setType });
     setWeight(''); setReps(''); setError('');
   };
   return (
@@ -519,6 +596,14 @@ function WorkoutPage({ workouts, onAdd, onDelete }: { workouts: WorkoutSet[]; on
               </div>
               <Field id="workout-weight" label="Weight" suffix="kg" value={weight} onChange={setWeight} placeholder="e.g. 60" />
               <Field id="workout-reps" label="Reps" suffix="reps" value={reps} onChange={setReps} placeholder="e.g. 8" />
+              <div className="field full">
+                <span className="field-label" id="set-type-label">Set type</span>
+                <div className="set-type-options" role="group" aria-labelledby="set-type-label">
+                  {([['warmup', 'Warm-up'], ['working', 'Working'], ['drop', 'Drop set']] as const).map(([value, label]) => (
+                    <button key={value} type="button" className={`set-type-option${setType === value ? ' is-selected' : ''}`} onClick={() => setSetType(value)} aria-pressed={setType === value} data-testid={`button-set-type-${value}`}>{label}</button>
+                  ))}
+                </div>
+              </div>
             </div>
             <p className="field-hint" style={{ marginTop: 13 }}>
               One good set is enough to keep the story moving.
@@ -532,7 +617,7 @@ function WorkoutPage({ workouts, onAdd, onDelete }: { workouts: WorkoutSet[]; on
           </form>
         </section>
         <section>
-          {sorted.length > 0 && <PRBanner workouts={workouts} />}
+          {sorted.length > 0 && <PRBanner latest={sorted[0]} isPR={prIds.has(sorted[0].id)} />}
           <div className="panel">
             <div className="panel-header">
               <div>
@@ -556,7 +641,7 @@ function WorkoutPage({ workouts, onAdd, onDelete }: { workouts: WorkoutSet[]; on
                     key={item.id}
                     data-testid={`row-workout-${item.id}`}
                   >
-                    <strong>{item.exercise}</strong>
+                    <div className="history-exercise"><strong>{item.exercise}</strong><small>{item.setType === 'warmup' ? 'Warm-up' : item.setType === 'drop' ? 'Drop set' : item.setType === 'working' ? 'Working' : 'Set'}</small>{prIds.has(item.id) && <span className="pr-tag" data-testid={`tag-pr-${item.id}`}><Award size={11} /> PR</span>}</div>
                     <span>{item.weight} kg</span>
                     <span>× {item.reps}</span>
                     <span className="one-rm">{item.estimatedOneRm} kg</span>
@@ -586,10 +671,8 @@ function WorkoutPage({ workouts, onAdd, onDelete }: { workouts: WorkoutSet[]; on
   );
 }
 
-function PRBanner({ workouts }: { workouts: WorkoutSet[] }) {
-  const latest = workouts[0];
-  const bestBefore = Math.max(0, ...workouts.filter((item) => item.id !== latest.id && item.exercise.toLowerCase() === latest.exercise.toLowerCase()).map((item) => item.estimatedOneRm));
-  if (!latest || latest.estimatedOneRm <= bestBefore) return null;
+function PRBanner({ latest, isPR }: { latest: WorkoutSet; isPR: boolean }) {
+  if (!isPR) return null;
   return <div className="pr-banner" data-testid="status-new-pr"><Award size={22} /><div><strong>New personal best</strong><span>{latest.exercise} is moving in the right direction.</span></div><span className="pr-value">{latest.estimatedOneRm} kg</span></div>;
 }
 
@@ -602,10 +685,16 @@ function PlanPage({ profile, onApplyPlan }: { profile: Profile; onApplyPlan: (pl
     activity: 'moderate' as ActivityLevel,
     goal: 'maintain' as PlanGoal,
   });
+  useEffect(() => {
+    setForm((current) => ({ ...current, weight: String(profile.weight), height: String(profile.height || 170) }));
+  }, [profile.weight, profile.height]);
 
   const weight = Math.max(1, numberValue(form.weight));
   const height = Math.max(100, numberValue(form.height) || 170);
   const age = Math.min(90, Math.max(14, numberValue(form.age) || 28));
+  const validInputs = Number(form.weight) >= 20 && Number(form.weight) <= 500 &&
+    Number(form.height) >= 100 && Number(form.height) <= 230 &&
+    Number.isSafeInteger(Number(form.age)) && Number(form.age) >= 14 && Number(form.age) <= 90;
   const heightMeters = height / 100;
   const bmi = weight / (heightMeters * heightMeters);
   const bmiLabel = bmi < 18.5 ? 'Below healthy range' : bmi < 25 ? 'Healthy range' : bmi < 30 ? 'Above healthy range' : 'High range';
@@ -617,7 +706,7 @@ function PlanPage({ profile, onApplyPlan }: { profile: Profile; onApplyPlan: (pl
   const fat = Math.round((calories * 0.25) / 9);
   const carbs = Math.max(0, Math.round((calories - (protein * 4) - (fat * 9)) / 4));
   const goalLabel = form.goal === 'cut' ? 'Cut' : form.goal === 'bulk' ? 'Bulk' : 'Maintain';
-  const plan: PlanResult = { calories, protein, carbs, fat, bmi, bmiLabel, goalLabel };
+  const plan: PlanResult = { calories, protein, carbs, fat, bmi, bmiLabel, goalLabel, weight, height };
 
   return (
     <>
@@ -693,7 +782,8 @@ function PlanPage({ profile, onApplyPlan }: { profile: Profile; onApplyPlan: (pl
             <div><span className="macro-swatch bar-carbs" /> <span>Carbs</span><strong data-testid="text-plan-carbs">{carbs}g</strong></div>
             <div><span className="macro-swatch bar-fat" /> <span>Fat</span><strong data-testid="text-plan-fat">{fat}g</strong></div>
           </div>
-          <button className="button-primary apply-plan-button" onClick={() => onApplyPlan(plan)} data-testid="button-apply-plan"><Check size={15} /> Apply these targets</button>
+          {!validInputs && <p className="error-text plan-validation" role="alert">Enter a weight of 20–500 kg, height of 100–230 cm, and age of 14–90 to apply this plan.</p>}
+          <button className="button-primary apply-plan-button" type="button" disabled={!validInputs} onClick={() => onApplyPlan(plan)} data-testid="button-apply-plan"><Check size={15} /> Apply these targets</button>
         </section>
       </div>
       <section className="panel bmi-panel" style={{ marginTop: 22 }}>
