@@ -162,11 +162,10 @@ export default function PremiumDashboard({
       <div className="fp-dashboard" id="premium-top">
         <header className="fp-heading">
           <div>
-            <div className="fp-date-kicker"><span className="fp-live-dot" /> TODAY, {today.toUpperCase()}</div>
+            <div className="fp-date-kicker"><span className="fp-live-dot" aria-hidden="true" /><span>TODAY, <span data-testid="text-today-date">{today}</span></span></div>
             <h1><span>Your day.</span><span className="fp-heading-accent">In progress.</span></h1>
-            <p data-testid="text-dashboard-greeting" className="text-[13px]"><strong>{profile.name.split(' ')[0]},</strong> see your fuel, movement and strength at a glance.</p>
+            <p data-testid="text-dashboard-greeting"><strong>{profile.name.split(' ')[0]},</strong> see your fuel, movement and strength at a glance.</p>
           </div>
-          <div className="text-[45px]"><span>YOUR DAILY CHECK-IN</span><strong data-testid="text-today-date">{today}</strong></div>
         </header>
 
         <section className="fp-coach-card" id="premium-focus" data-testid="card-daily-ritual">
