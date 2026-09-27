@@ -246,7 +246,7 @@ test('custom nutrition goals update both views and persist after refresh', { tim
         mobileBarDisplay: getComputedStyle(document.querySelector('.fp-mobilebar')).display,
       };
     })()`);
-    assert.equal(shell.width, 430, 'the app should stay at a 430px maximum width on desktop');
+    assert.equal(shell.width, 640, 'the app should stay at a 640px maximum width on desktop');
     assert.ok(Math.abs(shell.left - shell.expectedLeft) <= 1, 'the app should be centered in the usable viewport');
     assert.equal(shell.sidebarDisplay, 'none', 'the desktop sidebar should not occupy the narrow shell');
     assert.notEqual(shell.mobileBarDisplay, 'none', 'the mobile navigation trigger should be available');

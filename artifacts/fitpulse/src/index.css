@@ -83,10 +83,12 @@
 
 @layer base {
   * { @apply border-border; }
-  html { scroll-behavior: smooth; }
+  html { scroll-behavior: smooth; font-size: 16px; width: 100%; }
   body {
     @apply font-sans antialiased bg-background text-foreground;
     margin: 0;
+    padding: 0;
+    width: 100%;
     min-width: 320px;
     background-color: #f7f5ee;
     overflow-x: hidden;
@@ -97,10 +99,20 @@
 
 #root {
   width: 100%;
-  max-width: 430px;
+  max-width: 640px;
   min-height: 100dvh;
   margin-inline: auto;
+  padding: 16px;
+  box-sizing: border-box;
   container: fitpulse / inline-size;
+}
+
+#root main {
+  width: 100%;
+  max-width: 640px;
+  margin-inline: auto;
+  padding: 16px;
+  box-sizing: border-box;
 }
 
 @keyframes rise-in {
