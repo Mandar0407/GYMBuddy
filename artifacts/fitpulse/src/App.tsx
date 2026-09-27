@@ -26,18 +26,23 @@ import {
 import PremiumDashboard from './PremiumDashboard';
 import MovementPage from './MovementPage';
 import WeeklyInsightsPage from './WeeklyInsightsPage';
+import AdvancedAnalytics from './AdvancedAnalytics';
 import { buildWeeklyInsights } from './weeklyInsights';
 import RestTimer from './RestTimer';
 import StrengthIntervalTimer from './StrengthIntervalTimer';
 import WaterIntakeCard from './WaterIntakeCard';
+import MealTemplates from './MealTemplates';
+import PRCelebration from './PRCelebration';
+import { calculatedOneRm } from './strengthMath';
 import { useMotionSteps } from './useMotionSteps';
 import { usePairedMovement } from './usePairedMovement';
 
 type View = 'dashboard' | 'macros' | 'workout' | 'steps' | 'insights' | 'plan';
 type Profile = { name: string; goal: string; weight: number; height: number; calorieTarget: number; proteinTarget: number; carbsTarget: number; fatTarget: number; stepTarget: number };
 type MacroLog = { id: string; meal: string; calories: number; protein: number; carbs: number; fat: number; time: string; date?: string };
-type SetType = 'warmup' | 'working' | 'drop';
+type SetType = 'warmup' | 'working' | 'drop' | 'failure';
 type WorkoutSet = { id: string; exercise: string; weight: number; reps: number; estimatedOneRm: number; date: string; setType?: SetType };
+type CompletedWorkout = { id: string; date: string; completedAt: number; setIds: string[] };
 type StepsMap = Record<string, number>;
 type HourlyStepsMap = Record<string, number[]>;
 type PlanGoal = 'cut' | 'maintain' | 'bulk';
@@ -49,12 +54,14 @@ const STORAGE = {
   profile: 'fitpulse-profile',
   macros: 'fitpulse-macros',
   workouts: 'fitpulse-workouts',
+  completedWorkouts: 'fitpulse-completed-workouts',
   steps: 'fitpulse-steps',
   stepHours: 'fitpulse-step-hours',
   stride: 'fitpulse-stride-cm',
   strideOverride: 'fitpulse-stride-override-cm',
   water: 'fitpulse-water',
   waterGoal: 'fitpulse-water-goal',
+  weights: 'fitpulse-weight-history',
 };
 
 const defaultProfile: Profile = {
@@ -133,6 +140,22 @@ function readMeals(): MacroLog[] {
   });
 }
 
+function readWeights(): StepsMap {
+  const value = readStorage<unknown>(STORAGE.weights, {});
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter(([key, weight]) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(key) && typeof weight === 'number' && Number.isFinite(weight) && weight >= 20 && weight <= 500));
+}
+
+function readCompletedWorkouts(): CompletedWorkout[] {
+  const value = readStorage<unknown>(STORAGE.completedWorkouts, []);
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is CompletedWorkout => Boolean(item) && typeof item.id === 'string' &&
+    typeof item.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.date) &&
+    Number.isFinite(item.completedAt) && Array.isArray(item.setIds) && item.setIds.length > 0 &&
+    item.setIds.every((id: unknown) => typeof id === 'string'));
+}
+
 function initials(name: string) {
   return name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase();
 }
@@ -163,9 +186,11 @@ function App() {
   const [profile, setProfile] = useState<Profile>(() => ({ ...defaultProfile, ...readStorage(STORAGE.profile, defaultProfile) }));
   const [macros, setMacros] = useState<MacroLog[]>(readMeals);
   const [workouts, setWorkouts] = useState<WorkoutSet[]>(() => readStorage(STORAGE.workouts, []));
+  const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>(readCompletedWorkouts);
   const [steps, setSteps] = useState<StepsMap>(() => readStorage(STORAGE.steps, {}));
   const [stepHours, setStepHours] = useState<HourlyStepsMap>(readHourlySteps);
   const [waterHistory, setWaterHistory] = useState<StepsMap>(() => readStorage(STORAGE.water, {}));
+  const [weightHistory, setWeightHistory] = useState<StepsMap>(readWeights);
   const [waterGoal, setWaterGoal] = useState(() => {
     const saved = readStorage<number>(STORAGE.waterGoal, 2000);
     return Number.isInteger(saved) && saved >= 100 && saved <= 20000 ? saved : 2000;
@@ -174,6 +199,7 @@ function App() {
   const strideCm = strideOverrideCm ?? Math.round(profile.height * 0.415);
   const [toast, setToast] = useState('');
   const [restSession, setRestSession] = useState<{ id: string; exercise: string; setType: SetType } | null>(null);
+  const [prCelebration, setPrCelebration] = useState<{ set: WorkoutSet; oneRmRecord: boolean; weightRecord: boolean } | null>(null);
   const [storageError, setStorageError] = useState(false);
   const [currentDate, setCurrentDate] = useState(todayKey);
   const paired = usePairedMovement();
@@ -229,9 +255,11 @@ function App() {
   useEffect(() => { persist(STORAGE.profile, profile); }, [profile]);
   useEffect(() => { persist(STORAGE.macros, macros); }, [macros]);
   useEffect(() => { persist(STORAGE.workouts, workouts); }, [workouts]);
+  useEffect(() => { persist(STORAGE.completedWorkouts, completedWorkouts); }, [completedWorkouts]);
   useEffect(() => { persist(STORAGE.steps, steps); }, [steps]);
   useEffect(() => { persist(STORAGE.stepHours, stepHours); }, [stepHours]);
   useEffect(() => { persist(STORAGE.water, waterHistory); }, [waterHistory]);
+  useEffect(() => { persist(STORAGE.weights, weightHistory); }, [weightHistory]);
   useEffect(() => { persist(STORAGE.waterGoal, waterGoal); }, [waterGoal]);
   useEffect(() => { persist(STORAGE.strideOverride, strideOverrideCm); }, [strideOverrideCm]);
   useEffect(() => {
@@ -247,10 +275,7 @@ function App() {
   };
 
   const todayMacros = macros.filter((meal) => meal.date === currentDate);
-  const visibleSteps = paired.key && paired.data
-    ? { ...steps, ...Object.fromEntries(Object.entries(paired.stepTotals).map(([day, count]) =>
-      [day, paired.nativeDates.has(day) ? count : (steps[day] ?? 0) + count])) }
-    : steps;
+  const visibleSteps = paired.key && paired.data ? { ...steps, ...paired.stepTotals } : steps;
   const todaySteps = visibleSteps[currentDate] ?? 0;
   const todayWater = waterHistory[currentDate] ?? 0;
   const calories = todayMacros.reduce((total, item) => total + item.calories, 0);
@@ -259,7 +284,7 @@ function App() {
   const fat = todayMacros.reduce((total, item) => total + item.fat, 0);
   const workoutCount = workouts.filter((item) => item.date === currentDate).length;
   const weeklyInsight = view === 'insights' ? buildWeeklyInsights({
-    todayKey: currentDate, weekOffset, steps, water: waterHistory, meals: macros, workouts,
+    todayKey: currentDate, weekOffset, steps: visibleSteps, water: waterHistory, meals: macros, workouts,
     stepGoal: profile.stepTarget, waterGoal, calorieGoal: profile.calorieTarget,
   }) : null;
 
@@ -370,14 +395,27 @@ function App() {
             <div hidden={view !== 'workout'}>
               <WorkoutPage
                 workouts={workouts}
+                completedWorkouts={completedWorkouts}
                 onAdd={(set) => {
                   const previous = workouts.filter((item) => item.exercise.trim().toLowerCase() === set.exercise.trim().toLowerCase());
-                  const previousBest = Math.max(0, ...previous.map((item) => item.estimatedOneRm));
+                  const oneRmRecord = previous.length > 0 && calculatedOneRm(set) > Math.max(...previous.map(calculatedOneRm));
+                  const weightRecord = previous.length > 0 && set.weight > Math.max(...previous.map((item) => item.weight));
                   setWorkouts((existing) => [set, ...existing]);
-                  setRestSession({ id: set.id, exercise: set.exercise, setType: set.setType ?? 'working' });
-                  setToast(previous.length > 0 && set.estimatedOneRm > previousBest ? `New ${set.exercise} PR — ${set.estimatedOneRm} kg estimated 1RM.` : 'Set logged. Rest timer started.');
+                  if (set.setType === 'working') setRestSession({ id: set.id, exercise: set.exercise, setType: 'working' });
+                  if (oneRmRecord || weightRecord) setPrCelebration({ set, oneRmRecord, weightRecord });
+                  setToast(oneRmRecord || weightRecord ? 'New personal record!' : set.setType === 'working' ? 'Set logged. Rest timer started.' : 'Set logged.');
                 }}
-                onDelete={(id) => { setWorkouts((existing) => existing.filter((item) => item.id !== id)); setToast('Set removed.'); }}
+                onFinishWorkout={(setIds) => {
+                  setCompletedWorkouts((existing) => [{ id: crypto.randomUUID(), date: todayKey(), completedAt: Date.now(), setIds }, ...existing]);
+                  setToast('Workout marked complete.');
+                }}
+                onDelete={(id) => {
+                  setWorkouts((existing) => existing.filter((item) => item.id !== id));
+                  setCompletedWorkouts((existing) => existing.map((item) => ({
+                    ...item, setIds: item.setIds.filter((setId) => setId !== id),
+                  })).filter((item) => item.setIds.length > 0));
+                  setToast('Set removed.');
+                }}
               />
             </div>
             {view === 'steps' && (
@@ -422,10 +460,24 @@ function App() {
               />
             )}
             {view === 'insights' && weeklyInsight && (
-              <WeeklyInsightsPage insight={weeklyInsight} weekOffset={weekOffset}
-                onWeekChange={setWeekOffset}
-                onNavigate={navigate}
-              />
+              <>
+                <WeeklyInsightsPage insight={weeklyInsight} weekOffset={weekOffset}
+                  onWeekChange={setWeekOffset}
+                  onNavigate={navigate}
+                />
+                <AdvancedAnalytics currentDate={currentDate} meals={macros} steps={visibleSteps}
+                  workouts={workouts} completedWorkouts={completedWorkouts} weightHistory={weightHistory} calorieTarget={profile.calorieTarget}
+                  proteinTarget={profile.proteinTarget}
+                  onLogWeight={(weightKg) => {
+                    const next = { ...weightHistory, [todayKey()]: weightKg };
+                    window.localStorage.setItem(STORAGE.weights, JSON.stringify(next));
+                    setWeightHistory(next);
+                    setProfile((existing) => ({ ...existing, weight: weightKg }));
+                    if (paired.key) void paired.saveSettings(profile.stepTarget, strideCm, weightKg);
+                    setCurrentDate(todayKey());
+                  }}
+                />
+              </>
             )}
             {view === 'plan' && (
               <PlanPage
@@ -450,6 +502,9 @@ function App() {
       </div>
       {profileOpen && <ProfileModal profile={profile} onClose={() => setProfileOpen(false)} onSave={saveProfile} returnFocusRef={profileTriggerRef} />}
       {restSession && <RestTimer key={restSession.id} exercise={restSession.exercise} setType={restSession.setType} onDismiss={() => setRestSession(null)} />}
+      {prCelebration && <PRCelebration exercise={prCelebration.set.exercise} estimatedOneRm={prCelebration.set.estimatedOneRm}
+        weight={prCelebration.set.weight} oneRmRecord={prCelebration.oneRmRecord} weightRecord={prCelebration.weightRecord}
+        onClose={() => setPrCelebration(null)} />}
       {toast && <div className={`fp-toast${restSession ? ' fp-toast-with-rest' : ''}`} role="status" data-testid="status-toast"><Check size={16} /> {toast}</div>}
     </div>
   );
@@ -616,6 +671,11 @@ function MacrosPage({
             {error && <p className="error-text" style={{ marginTop: 13 }} data-testid="status-meal-error">{error}</p>}
             <div className="form-actions"><button className="button-primary" type="submit" data-testid="button-submit-meal"><Plus size={15} /> Add meal</button></div>
           </form>
+          <MealTemplates onLog={(template) => onAdd({
+            id: `meal-${Date.now()}-${crypto.randomUUID()}`, meal: template.name,
+            calories: template.calories, protein: template.protein, carbs: template.carbs, fat: template.fat,
+            time: new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date()),
+          })} />
         </section>
         <section className="panel" data-testid="card-macro-totals">
           <div className="panel-header"><div><h3>Today’s totals</h3><p>{logs.length ? 'A quick read of your fuel.' : 'Ready when you are.'}</p></div><div className="section-label">{Math.min(100, Math.round((calories / profile.calorieTarget) * 100))}% target</div></div>
@@ -632,21 +692,30 @@ function Field({ id, label, suffix, value, onChange, placeholder }: { id: string
   return <div className="field"><label htmlFor={id}>{label} <span style={{ color: 'hsl(var(--muted-foreground))', fontWeight: 500 }}>({suffix})</span></label><input id={id} type="number" min="0" step="1" value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} data-testid={`input-${id}`} /></div>;
 }
 
-function WorkoutPage({ workouts, onAdd, onDelete }: { workouts: WorkoutSet[]; onAdd: (set: WorkoutSet) => void; onDelete: (id: string) => void }) {
+function WorkoutPage({ workouts, completedWorkouts, onAdd, onDelete, onFinishWorkout }: {
+  workouts: WorkoutSet[]; completedWorkouts: CompletedWorkout[];
+  onAdd: (set: WorkoutSet) => void; onDelete: (id: string) => void; onFinishWorkout: (setIds: string[]) => void;
+}) {
   const [exercise, setExercise] = useState('Back squat');
   const [weight, setWeight] = useState('');
   const [reps, setReps] = useState('');
   const [setType, setSetType] = useState<SetType>('working');
   const [error, setError] = useState('');
   const currentDate = todayKey();
+  const finishedIds = new Set(completedWorkouts.flatMap((item) => item.setIds));
+  const pendingSets = workouts.filter((item) => item.date === currentDate && !finishedIds.has(item.id));
+  const completedToday = completedWorkouts.filter((item) => item.date === currentDate).length;
   const sorted = [...workouts].sort((a, b) => `${b.date}${b.id}`.localeCompare(`${a.date}${a.id}`));
-  const bestByExercise = new Map<string, number>();
+  const bestByExercise = new Map<string, { oneRm: number; weight: number }>();
   const prIds = new Set<string>();
   for (const item of [...sorted].reverse()) {
     const key = item.exercise.trim().toLowerCase();
     const previousBest = bestByExercise.get(key);
-    if (previousBest !== undefined && item.estimatedOneRm > previousBest) prIds.add(item.id);
-    bestByExercise.set(key, Math.max(previousBest ?? 0, item.estimatedOneRm));
+    if (previousBest && (calculatedOneRm(item) > previousBest.oneRm || item.weight > previousBest.weight)) prIds.add(item.id);
+    bestByExercise.set(key, {
+      oneRm: Math.max(previousBest?.oneRm ?? 0, calculatedOneRm(item)),
+      weight: Math.max(previousBest?.weight ?? 0, item.weight),
+    });
   }
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -654,7 +723,7 @@ function WorkoutPage({ workouts, onAdd, onDelete }: { workouts: WorkoutSet[]; on
     const numericReps = numberValue(reps);
     if (!exercise.trim()) { setError('Name the exercise you worked on.'); return; }
     if (numericWeight <= 0 || !Number.isSafeInteger(numericReps) || numericReps < 1 || numericReps > 30) { setError('Use a weight above 0 and between 1–30 whole reps.'); return; }
-    const estimatedOneRm = Math.round(numericWeight * (1 + numericReps / 30));
+    const estimatedOneRm = numericWeight * (1 + numericReps / 30);
     onAdd({ id: `${Date.now()}-${crypto.randomUUID()}`, exercise: exercise.trim(), weight: numericWeight, reps: numericReps, estimatedOneRm, date: currentDate, setType });
     setWeight(''); setReps(''); setError('');
   };
@@ -672,6 +741,10 @@ function WorkoutPage({ workouts, onAdd, onDelete }: { workouts: WorkoutSet[]; on
         </div>
       </header>
       <StrengthIntervalTimer />
+      <div className="workout-finish-bar" data-testid="section-complete-workout">
+        <div><strong>{pendingSets.length} {pendingSets.length === 1 ? 'set' : 'sets'} in this workout</strong><span>{completedToday > 0 ? `${completedToday} completed ${completedToday === 1 ? 'workout' : 'workouts'} logged today.` : 'Mark a workout complete after logging its sets.'}</span></div>
+        <button type="button" className="button-primary" disabled={pendingSets.length === 0} onClick={() => onFinishWorkout(pendingSets.map((item) => item.id))} data-testid="button-complete-workout"><Check size={15} /> Finish workout</button>
+      </div>
       <div className="workout-layout">
         <section className="panel">
           <div className="panel-header">
@@ -698,7 +771,7 @@ function WorkoutPage({ workouts, onAdd, onDelete }: { workouts: WorkoutSet[]; on
               <div className="field full">
                 <span className="field-label" id="set-type-label">Set type</span>
                 <div className="set-type-options" role="group" aria-labelledby="set-type-label">
-                  {([['warmup', 'Warm-up'], ['working', 'Working'], ['drop', 'Drop set']] as const).map(([value, label]) => (
+                  {([['warmup', 'Warm-up'], ['working', 'Working set'], ['drop', 'Drop set'], ['failure', 'Failure']] as const).map(([value, label]) => (
                     <button key={value} type="button" className={`set-type-option${setType === value ? ' is-selected' : ''}`} onClick={() => setSetType(value)} aria-pressed={setType === value} data-testid={`button-set-type-${value}`}>{label}</button>
                   ))}
                 </div>
@@ -716,7 +789,6 @@ function WorkoutPage({ workouts, onAdd, onDelete }: { workouts: WorkoutSet[]; on
           </form>
         </section>
         <section>
-          {sorted.length > 0 && <PRBanner latest={sorted[0]} isPR={prIds.has(sorted[0].id)} />}
           <div className="panel">
             <div className="panel-header">
               <div>
@@ -731,7 +803,7 @@ function WorkoutPage({ workouts, onAdd, onDelete }: { workouts: WorkoutSet[]; on
                   <span>Exercise</span>
                   <span>Load</span>
                   <span>Reps</span>
-                  <span>Est. 1RM</span>
+                  <span>Est. 1RM / intensity</span>
                   <span className="date-column">Date</span>
                 </div>
                 {sorted.map((item) => (
@@ -740,10 +812,10 @@ function WorkoutPage({ workouts, onAdd, onDelete }: { workouts: WorkoutSet[]; on
                     key={item.id}
                     data-testid={`row-workout-${item.id}`}
                   >
-                    <div className="history-exercise"><strong>{item.exercise}</strong><small>{item.setType === 'warmup' ? 'Warm-up' : item.setType === 'drop' ? 'Drop set' : item.setType === 'working' ? 'Working' : 'Set'}</small>{prIds.has(item.id) && <span className="pr-tag" data-testid={`tag-pr-${item.id}`}><Award size={11} /> PR</span>}</div>
+                    <div className="history-exercise"><strong>{item.exercise}</strong><small>{item.setType === 'warmup' ? 'Warm-up' : item.setType === 'drop' ? 'Drop set' : item.setType === 'working' ? 'Working set' : item.setType === 'failure' ? 'Failure' : 'Set'}</small>{prIds.has(item.id) && <span className="pr-tag" data-testid={`tag-pr-${item.id}`}><Award size={11} /> PR</span>}</div>
                     <span>{item.weight} kg</span>
                     <span>× {item.reps}</span>
-                    <span className="one-rm">{item.estimatedOneRm} kg</span>
+                    <span className="one-rm">{formatAmount(calculatedOneRm(item))} kg<small className="set-intensity" data-testid={`text-set-intensity-${item.id}`}>{Math.round(item.weight / (bestByExercise.get(item.exercise.trim().toLowerCase())?.oneRm || calculatedOneRm(item)) * 100)}% 1RM</small></span>
                     <span className="date-column">{shortDate(item.date)}</span>
                     <button
                       className="delete-button"
@@ -768,11 +840,6 @@ function WorkoutPage({ workouts, onAdd, onDelete }: { workouts: WorkoutSet[]; on
       </div>
     </>
   );
-}
-
-function PRBanner({ latest, isPR }: { latest: WorkoutSet; isPR: boolean }) {
-  if (!isPR) return null;
-  return <div className="pr-banner" data-testid="status-new-pr"><Award size={22} /><div><strong>New personal best</strong><span>{latest.exercise} is moving in the right direction.</span></div><span className="pr-value">{latest.estimatedOneRm} kg</span></div>;
 }
 
 function PlanPage({ profile, onApplyPlan }: { profile: Profile; onApplyPlan: (plan: PlanResult) => void }) {

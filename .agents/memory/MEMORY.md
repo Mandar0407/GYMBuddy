@@ -5,3 +5,5 @@
 - [Centered FitPulse shell](centered-fitpulse-shell.md) — keep narrow-layout behavior on wide screens without resetting component spacing.
 - [Headless browser focus](headless-browser-focus.md) — activate the CDP tab before checking CSS focus states; activeElement alone can mislead.
 - [Stride auto-migration](stride-auto-migration.md) — legacy saved stride has no override marker; distinguish the old default from likely manual values.
+- [Workout completion semantics](workout-completion.md) — completed workouts need an explicit user action and member sets, not inferred session counts.
+- [React type-version drift](react-type-version-drift.md) — minor-version type splits can break ref compatibility across library boundaries without a runtime bug.

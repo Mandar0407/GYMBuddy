@@ -7,7 +7,7 @@ export default function RestTimer({
   exercise, setType, onDismiss,
 }: {
   exercise: string;
-  setType: 'warmup' | 'working' | 'drop';
+  setType: 'warmup' | 'working' | 'drop' | 'failure';
   onDismiss: () => void;
 }) {
   const [endsAt, setEndsAt] = useState(() => Date.now() + REST_SECONDS * 1000);
@@ -41,7 +41,7 @@ export default function RestTimer({
     setRunning(true);
   };
   const clock = `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`;
-  const setLabel = setType === 'warmup' ? 'Warm-up' : setType === 'drop' ? 'Drop set' : 'Working set';
+  const setLabel = setType === 'warmup' ? 'Warm-up' : setType === 'drop' ? 'Drop set' : setType === 'failure' ? 'Failure set' : 'Working set';
 
   return (
     <aside className={`rest-timer${remaining === 0 ? ' is-complete' : ''}`} role="dialog" aria-modal="false" aria-label="Rest timer" data-testid="dialog-rest-timer">

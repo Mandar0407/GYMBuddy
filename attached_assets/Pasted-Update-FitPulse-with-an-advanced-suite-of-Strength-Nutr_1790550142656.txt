@@ -1,0 +1,21 @@
+Update FitPulse with an advanced suite of Strength, Nutrition, Movement, and Analytics features:
+
+1. STRENGTH MODULE (Progressive Overload & 1RM Calculator):
+   - Auto 1RM Calculation: Calculate Estimated 1-Rep Max for each logged set using Epley's formula: 1RM = Weight * (1 + Reps / 30). Display the estimated 1RM and percentage intensity (e.g., "85% 1RM") next to the logged set.
+   - Set Tagging: Add set type selector buttons when logging a set: Warm-up, Working Set, Drop Set, and Failure.
+   - PR Celebrations: Automatically compare new entries against previous bests for that exercise. If a set beats a past 1RM or weight record, trigger a clean PR celebration modal ("New Personal Record!").
+   - Auto Rest Timer Trigger: Automatically trigger the rest timer popup as soon as a working set is logged.
+
+2. NUTRITION MODULE (Meal Templates & Fasting Tracker):
+   - Saved Meal Templates: Allow users to save custom meals/smoothies with pre-set macro breakdowns (Calories, Protein, Carbs, Fat) into local storage.
+   - 1-Tap Quick Log: Display saved meal templates as quick-add cards in the "Log a Meal" section so frequent meals can be logged in a single tap.
+   - Intermittent Fasting Widget: Add an Intermittent Fasting card on the Today dashboard supporting standard windows (16:8, 18:6, or Custom) with a live countdown timer showing time remaining until the eating window opens.
+
+3. MOVEMENT MODULE (Dynamic Stride Calculation):
+   - Auto Stride Formula: Automatically compute stride length in Movement Settings based on user Height from Profile using the formula: strideLength = Math.round(heightCm * 0.415).
+   - Display a brief caption under the field explaining the formula, with a "Reset to Auto" button if overridden.
+
+4. WEEKLY ANALYTICS & TRENDS (Dashboard Charts):
+   - 7-Day Consistency Bar Chart: Add a clean bar chart showing daily calorie and protein intake against targets over the last 7 days, color-coded by target completion.
+   - Body Weight Trend: Include a 7-day weight graph with a smoothed moving average line to track true weight trends.
+   - Weekly Highlights: Show 7-day average steps, total workouts completed, and average daily protein hit rate.

@@ -358,7 +358,15 @@
 .history-row span { color: hsl(var(--muted-foreground)); font-size: 12px; }
 .history-row .one-rm { color: hsl(var(--primary)); font-weight: 700; }
 .history-head { color: hsl(var(--muted-foreground)); font-size: 10px; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; }
-.set-type-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.set-type-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.history-row .one-rm .set-intensity { display: block; margin-top: 3px; font-size: 10px; color: hsl(var(--muted-foreground)); font-weight: 600; white-space: nowrap; }
+@media (max-width: 380px) { .set-type-options { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.workout-finish-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin: 18px 0; padding: 16px 18px; border: 1px solid #cbd8c5; border-radius: 13px; background: #eff4e9; }
+.workout-finish-bar strong, .workout-finish-bar span { display: block; }
+.workout-finish-bar strong { color: #2f5f51; font-size: 13px; }
+.workout-finish-bar span { margin-top: 4px; color: #61766b; font-size: 11px; }
+.workout-finish-bar button { min-height: 42px; }
+.workout-finish-bar button:disabled { opacity: .45; cursor: not-allowed; }
 .field-label { font-size: 12px; font-weight: 700; }
 .set-type-option { min-height: 42px; padding: 8px 5px; border: 1px solid hsl(var(--border)); border-radius: 9px; background: hsl(var(--background)); color: hsl(var(--muted-foreground)); font-size: 11px; font-weight: 700; }
 .set-type-option:hover { border-color: hsl(var(--primary) / .5); }

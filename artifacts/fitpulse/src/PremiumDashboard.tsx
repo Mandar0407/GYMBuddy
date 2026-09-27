@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import './premium.css';
+import FastingCard from './FastingCard';
 
 type Profile = {
   name: string;
@@ -46,7 +47,7 @@ type PremiumDashboardProps = {
   todaySteps: number;
   workoutCount: number;
   macros: MacroLog[];
-  onNavigate: (view: 'dashboard' | 'macros' | 'workout' | 'steps' | 'plan') => void;
+  onNavigate: (view: 'dashboard' | 'macros' | 'workout' | 'steps' | 'insights' | 'plan') => void;
   onAddMeal: (meal: MacroLog) => void;
 };
 
@@ -211,6 +212,11 @@ export default function PremiumDashboard({
             <div className="fp-mini-track"><i style={{ width: `${stepsProgress}%` }} /></div>
           </article>
         </section>
+
+        <FastingCard />
+        <button type="button" className="fp-analytics-link" onClick={() => onNavigate('insights')} data-testid="button-dashboard-weekly-analytics">
+          <span><strong>Your last 7 days</strong><small>Food, weight, steps &amp; strength — from your journal.</small></span><span>See trends <ArrowRight size={16} aria-hidden="true" /></span>
+        </button>
 
         <div className="fp-dashboard-grid">
           <section className="fp-panel fp-nutrition-panel" id="premium-nutrition" data-testid="card-dashboard-macros">

@@ -1,0 +1,20 @@
+.meal-templates { margin: 20px 0 0; padding-top: 18px; border-top: 1px solid hsl(var(--border)); }
+.meal-template-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.meal-template-heading strong, .meal-template-heading small { display: block; }
+.meal-template-heading strong { font-size: 13px; }
+.meal-template-heading small { margin-top: 3px; color: hsl(var(--muted-foreground)); font-size: 11px; }
+.meal-template-heading button { white-space: nowrap; min-height: 40px; font-size: 11px; }
+.meal-template-empty { margin: 12px 0 0; color: hsl(var(--muted-foreground)); font-size: 11px; }
+.meal-template-list { display: grid; gap: 8px; margin-top: 14px; }
+.meal-template-card { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px; border: 1px solid hsl(var(--border)); border-radius: 12px; background: hsl(var(--background) / .8); }
+.meal-template-card strong, .meal-template-card span { display: block; }
+.meal-template-card strong { font-size: 12px; overflow-wrap: anywhere; }
+.meal-template-card span { margin-top: 4px; color: hsl(var(--muted-foreground)); font-size: 10px; line-height: 1.4; }
+.meal-template-actions { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; }
+.meal-template-actions button { min-height: 40px; padding: 7px 9px; font-size: 11px; }
+.meal-template-form { display: grid; gap: 10px; margin-top: 15px; }
+.meal-template-form label { display: grid; gap: 5px; font-size: 11px; font-weight: 700; }
+.meal-template-form input { width: 100%; min-width: 0; min-height: 42px; padding: 8px 10px; border: 1px solid hsl(var(--input)); border-radius: 9px; background: hsl(var(--background)); color: hsl(var(--foreground)); font-size: 14px; }
+.meal-template-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
+.meal-template-form > button { justify-self: start; min-height: 42px; }
+@media (max-width: 340px) { .meal-template-heading, .meal-template-card { flex-wrap: wrap; } }

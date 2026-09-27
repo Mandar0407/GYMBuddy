@@ -1,0 +1,8 @@
+#root .pr-celebration-backdrop { z-index: 220; }
+.pr-celebration { text-align: center; max-width: 380px; border-color: hsl(var(--accent) / .55); background: #fbf8ee; }
+.pr-celebration-emblem { width: 58px; height: 58px; display: grid; place-items: center; margin: 0 auto 14px; border-radius: 50%; background: #e9efca; color: #28695c; }
+.pr-celebration h2 { margin: 9px 0; font: 700 clamp(24px, 6vw, 31px)/1.12 'Manrope', sans-serif; letter-spacing: -.055em; color: #312b26; }
+.pr-celebration p { margin: 0; color: #5c544a; font-size: 13px; line-height: 1.5; }
+.pr-celebration-records { display: grid; gap: 7px; margin: 18px 0; }
+.pr-celebration-records span { display: block; padding: 9px; border-radius: 8px; background: #eff1df; color: #28695c; font-size: 12px; font-weight: 700; }
+.pr-celebration > button { min-height: 44px; margin: 0 auto; }

@@ -1,19 +1,22 @@
 {
   "expo": {
-    "name": "FitPulse Mobile",
-    "slug": "fitpulse-mobile",
+    "name": "FitPulse",
+    "slug": "fitpulse",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/fitpulse-icon.png",
-    "scheme": "fitpulse-mobile",
+    "scheme": "fitpulse",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false,
       "infoPlist": {
         "NSMotionUsageDescription": "FitPulse reads your iPhone's step history to show your daily and hourly movement, including walks while the screen was locked."
-      }
+      },
+      "bundleIdentifier": "com.fitpulse.app"
     },
-    "android": {},
+    "android": {
+      "package": "com.fitpulse.app"
+    },
     "web": {
       "favicon": "./assets/images/fitpulse-icon.png"
     },
