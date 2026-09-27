@@ -465,3 +465,50 @@
   .fp-premium .fp-mobile-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fp-premium .fp-mobile-nav .fp-nav-item { min-height: 48px; font-size: 14px; }
 }
+
+/* Opaque, always-on-top navigation when the app uses its narrow layout. */
+.fp-premium .fp-mobilebar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  width: 100%;
+  padding: 12px 16px;
+  box-sizing: border-box;
+  background-color: #f7f5ee;
+}
+.fp-premium .fp-mobile-nav { top: 73px; z-index: 99; }
+
+.fp-premium {
+  --fp-muted: #555555;
+}
+.fp-premium :is(.fp-stat-foot span:first-child, .fp-stat-top, .fp-gentle-tag,
+  .fp-panel-heading p, .fp-meter-center small, .fp-macro-remaining,
+  .fp-macro-line-top, .fp-macro-line-top strong small,
+  .fp-meal-copy small, .fp-meal-kcal small, .fp-meal-footer,
+  .fp-meals-empty p, .fp-remaining > div:nth-child(2) span,
+  .fp-strength-copy p, .fp-strength-count span, .fp-dialog-heading p,
+  .fp-heading p, .fp-footer, .fp-form-field, .fp-input-wrap small) {
+  color: #555555;
+}
+.fp-premium :is(.fp-form-field > input, .fp-form-field select, .fp-input-wrap) {
+  height: 50px;
+  min-height: 50px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #27231f;
+}
+.fp-premium .fp-input-wrap input {
+  height: 100%;
+  font-size: 16px;
+  font-weight: 500;
+  color: #27231f;
+}
+.fp-premium .fp-remaining > button,
+.fp-premium .fp-submit-meal {
+  height: 50px;
+  min-height: 50px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.fp-premium .fp-dialog-backdrop { z-index: 200; }
+.fp-premium .fp-toast { z-index: 220; }

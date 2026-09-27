@@ -251,6 +251,29 @@ test('custom nutrition goals update both views and persist after refresh', { tim
     assert.equal(shell.sidebarDisplay, 'none', 'the desktop sidebar should not occupy the narrow shell');
     assert.notEqual(shell.mobileBarDisplay, 'none', 'the mobile navigation trigger should be available');
 
+    const header = await evaluate(cdp, `(() => {
+      const style = getComputedStyle(document.querySelector('.fp-mobilebar'));
+      return { position: style.position, top: style.top, zIndex: style.zIndex, background: style.backgroundColor };
+    })()`);
+    assert.deepEqual(header, { position: 'sticky', top: '0px', zIndex: '100', background: 'rgb(247, 245, 238)' });
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: false });
+    const phone = await evaluate(cdp, `(() => ({
+      viewport: document.documentElement.clientWidth,
+      width: document.querySelector('#root').getBoundingClientRect().width,
+      rootPadding: getComputedStyle(document.querySelector('#root')).paddingLeft,
+      mainPadding: getComputedStyle(document.querySelector('.fp-main')).paddingLeft,
+      pagePadding: getComputedStyle(document.querySelector('.fp-page')).paddingLeft,
+    }))()`);
+    assert.equal(phone.width, phone.viewport, 'the app should use the full usable phone width');
+    assert.equal(phone.rootPadding, '0px');
+    assert.equal(phone.mainPadding, '0px');
+    assert.equal(phone.pagePadding, '16px');
+    await evaluate(cdp, `window.scrollTo({ top: 300, behavior: 'instant' }); true`);
+    await waitFor(async () => evaluate(cdp, `window.scrollY > 0`), 'mobile page to scroll');
+    assert.ok(Math.abs(await evaluate(cdp, `document.querySelector('.fp-mobilebar').getBoundingClientRect().top`)) <= 1, 'the mobile header should stay pinned on scroll');
+    await evaluate(cdp, `window.scrollTo({ top: 0, behavior: 'instant' }); true`);
+    await cdp.send('Emulation.clearDeviceMetricsOverride');
+
     await navigateTo(cdp, 'macros');
     await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector('[data-testid="input-target-calories"]'))`), 'daily target form');
 

@@ -105,6 +105,7 @@
   padding: 16px;
   box-sizing: border-box;
   container: fitpulse / inline-size;
+  --muted-foreground: 0 0% 33.33%;
 }
 
 #root main {
@@ -548,3 +549,36 @@
   #root .history-row .date-column { grid-column: 1; }
   #root .history-row .delete-button { grid-column: 2; grid-row: 3; }
 }
+
+/* Let the phone viewport provide the outer edge; pages retain a 16px inset. */
+@media (max-width: 640px) {
+  #root {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+  #root main {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+#root :is(.field input, .field select, .custom-steps-row input) {
+  height: 50px;
+  min-height: 50px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #27231f;
+}
+#root .button-primary {
+  height: 50px;
+  min-height: 50px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* Dialogs and feedback must remain above the high-priority sticky header. */
+#root .modal-backdrop { z-index: 200; }
+#root .rest-timer { z-index: 210; }
+#root .toast { z-index: 220; }
