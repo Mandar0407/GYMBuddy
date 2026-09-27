@@ -110,8 +110,10 @@ export function useMotionSteps(onStep: () => void) {
 
     let stopped = false;
     let activeCleanup = () => {};
+    let silenceTimer = 0;
     const close = () => {
       stopped = true;
+      window.clearTimeout(silenceTimer);
       activeCleanup();
     };
     cleanupRef.current = close;
@@ -119,6 +121,15 @@ export function useMotionSteps(onStep: () => void) {
       if (stopped || token !== tokenRef.current) return;
       persistIntent(true);
       setStatus('active');
+    };
+    const noteReading = () => {
+      window.clearTimeout(silenceTimer);
+      silenceTimer = window.setTimeout(() => {
+        if (stopped || token !== tokenRef.current) return;
+        close();
+        cleanupRef.current = null;
+        setStatus('paused');
+      }, 15_000);
     };
     const fail = (reason: MotionStatus) => {
       if (stopped || token !== tokenRef.current) return;
@@ -148,6 +159,7 @@ export function useMotionSteps(onStep: () => void) {
             window.clearTimeout(timeout);
             ready();
           }
+          noteReading();
           detector(sensor.x, sensor.y, sensor.z, true);
         };
         const error: EventListener = (event) => {
@@ -186,6 +198,7 @@ export function useMotionSteps(onStep: () => void) {
         window.clearTimeout(timeout);
         ready();
       }
+      noteReading();
       detector(vector.x, vector.y, vector.z, vector !== acceleration);
     };
     window.addEventListener('devicemotion', handleMotion);

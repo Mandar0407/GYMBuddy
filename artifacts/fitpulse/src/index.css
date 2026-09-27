@@ -430,6 +430,23 @@
 .motion-live-dot::after { content: ''; position: absolute; inset: -4px; border: 1px solid hsl(var(--secondary-foreground) / .5); border-radius: 50%; animation: motion-dot-pulse 2s ease-out infinite; }
 @keyframes motion-button-glow { 50% { box-shadow: 0 0 0 5px hsl(var(--secondary-foreground) / .08); } }
 @keyframes motion-dot-pulse { 50% { transform: scale(1.5); opacity: 0; } 100% { transform: scale(1); opacity: 0; } }
+.movement-hourly-panel { color: #f8f8f2; background: #202c29; border-color: #202c29; box-shadow: 0 14px 32px #15241b25; }
+.movement-hourly-panel .section-label { color: #d9eb79; }
+.movement-hourly-panel .panel-header { align-items: end; gap: 14px; }
+.movement-hourly-panel .panel-header h3 { color: #f8f8f2; }
+.movement-hourly-panel .panel-header p { color: #d5dfd8; }
+.hourly-count { display: grid; justify-items: end; flex: 0 0 auto; line-height: 1.15; }
+.hourly-count strong { color: #deee82; font: 700 22px var(--app-font-sans); font-variant-numeric: tabular-nums; }
+.hourly-count span { color: #d5dfd8; font-size: 11px; }
+.hourly-chart { position: relative; display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 4px; align-items: end; height: 162px; margin-top: 20px; border-bottom: 1px solid #c3d2b65c; }
+.hourly-grid { position: absolute; inset: 0; background: linear-gradient(to bottom, #f1ffe318 1px, transparent 1px) 0 0 / 100% 33.33%; pointer-events: none; }
+.hourly-column { position: relative; z-index: 1; display: flex; align-items: end; justify-content: center; height: 100%; min-width: 0; }
+.hourly-bar { display: block; width: min(100%, 17px); border-radius: 4px 4px 0 0; background: #d9eb79; box-shadow: 0 0 14px #d9eb7930; transition: height .35s ease; }
+.hourly-column.is-current .hourly-bar { background: #ffa97f; box-shadow: 0 0 14px #ffa97f47; }
+.hourly-empty { position: absolute; top: 41%; left: 0; right: 0; margin: 0; color: #c5d3c5; text-align: center; font-size: 12px; pointer-events: none; }
+.hourly-axis { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 10px; color: #d5dfd8; font-size: 11px; font-weight: 700; }
+.hourly-unassigned { margin: 17px 0 0; padding: 10px 12px; border: 1px solid #d9eb7952; border-radius: 10px; color: #f4f7d5; background: #d9eb7914; font-size: 12px; line-height: 1.4; }
+.hourly-note { margin: 14px 0 0; color: #d5dfd8; font-size: 11px; line-height: 1.5; }
 .weekly-legend { display: flex; align-items: center; gap: 7px; margin: 18px 0 12px; color: hsl(var(--muted-foreground)); font-size: 11px; }
 .weekly-legend-today { width: 9px; height: 9px; border-radius: 3px; background: hsl(var(--primary)); }
 .weekly-legend-goal { width: 20px; margin-left: 12px; border-top: 1px dashed hsl(var(--primary)); }

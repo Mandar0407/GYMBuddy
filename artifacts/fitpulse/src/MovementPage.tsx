@@ -4,6 +4,7 @@ import type { MotionStatus } from './useMotionSteps';
 
 type Props = {
   steps: Record<string, number>;
+  hourlySteps: number[];
   todaySteps: number;
   currentDate: string;
   target: number;
@@ -42,8 +43,12 @@ function compactSteps(value: number) {
   return value >= 1000 ? `${Number((value / 1000).toFixed(1))}k` : value.toLocaleString();
 }
 
+function hourLabel(hour: number) {
+  return `${hour % 12 || 12} ${hour < 12 ? 'AM' : 'PM'}`;
+}
+
 export default function MovementPage({
-  steps, todaySteps, currentDate, target, weightKg, strideCm,
+  steps, hourlySteps, todaySteps, currentDate, target, weightKg, strideCm,
   motionStatus, storageError, onStartTracking, onStopTracking, onChange, onSaveSettings,
 }: Props) {
   const [customSteps, setCustomSteps] = useState('');
@@ -56,6 +61,9 @@ export default function MovementPage({
   const activeCalories = distanceKm * weightKg * 0.53;
   const calorieLabel = activeCalories === 0 ? '0' : activeCalories < 10 ? activeCalories.toFixed(1) : Math.round(activeCalories).toLocaleString();
   const days = weekInMotion(currentDate, steps);
+  const hourlyTotal = hourlySteps.reduce((sum, count) => sum + count, 0);
+  const unassignedSteps = Math.max(0, todaySteps - hourlyTotal);
+  const hourCeiling = Math.max(1, ...hourlySteps) * 1.1;
   const chartCeiling = Math.max(target, ...days.map((day) => day.value), 1) * 1.12;
   const goalLineTop = 100 - target / chartCeiling * 100;
   const motionCopy: Record<MotionStatus, string> = {
@@ -94,9 +102,9 @@ export default function MovementPage({
           <div className="steps-track" role="progressbar" aria-label="Daily step goal" aria-valuenow={Math.min(todaySteps, target)} aria-valuemin={0} aria-valuemax={target} aria-valuetext={`${todaySteps.toLocaleString()} steps, ${progress}% of goal`}><div className="steps-fill" style={{ width: `${Math.min(100, progress)}%` }} /></div>
           <div className="steps-goal-copy"><span>0</span><span data-testid="text-step-goal">{target.toLocaleString()} goal</span></div>
           <div className="movement-stats">
-            <div className="movement-stat movement-stat-calories"><strong data-testid="text-active-calories">{calorieLabel} <small>kcal</small></strong><span>Active calories burned</span></div>
+            <div className="movement-stat"><strong data-testid="text-metric-steps">{todaySteps.toLocaleString()}</strong><span>Total steps</span></div>
             <div className="movement-stat"><strong data-testid="text-estimated-distance">{distanceKm.toFixed(2)} <small>km</small></strong><span>Estimated distance</span></div>
-            <div className="movement-stat"><strong data-testid="text-stride-length">{strideCm} <small>cm</small></strong><span>Stride length</span></div>
+            <div className="movement-stat movement-stat-calories"><strong data-testid="text-active-calories">{calorieLabel} <small>kcal</small></strong><span>Estimated calories burned</span></div>
           </div>
           <p className="movement-estimate-note">Estimates use a {strideCm} cm stride and {weightKg} kg body weight.</p>
         </div>
@@ -127,7 +135,7 @@ export default function MovementPage({
 
       <section className="panel motion-panel" style={{ marginTop: 22 }}>
         <div className="motion-copy">
-          <div className={`motion-indicator${motionStatus === 'active' ? ' active' : ''}`} data-testid="status-motion-tracking"><Activity size={17} /><span>{motionStatus === 'active' ? 'Live' : motionStatus === 'paused' ? 'Paused' : 'Motion sensor'}</span></div>
+          <div className={`motion-indicator${motionStatus === 'active' ? ' active' : ''}`} data-testid="status-motion-tracking"><Activity size={17} /><span>{motionStatus === 'active' ? 'Active Motion Sensor' : motionStatus === 'paused' ? 'Sensor paused' : 'Motion sensor'}</span></div>
           <h3>Count steps as you move</h3>
           <p aria-live="polite">{motionCopy[motionStatus]}</p>
           <small>Keep this tab visible while you walk. Motion estimates can vary by phone and placement.</small>
@@ -137,11 +145,32 @@ export default function MovementPage({
             <button className="button-danger motion-button-live" type="button" onClick={onStopTracking} aria-label="Stop live tracking" data-testid="button-stop-live-tracking"><span className="motion-live-dot" aria-hidden="true" /> Live · Stop tracking</button>
           ) : (
             <>
-              <button className="button-primary" type="button" onClick={onStartTracking} disabled={motionStatus === 'requesting'} data-testid="button-start-live-tracking"><Activity size={16} /> {motionStatus === 'requesting' ? 'Connecting…' : motionStatus === 'paused' ? 'Resume live tracking' : 'Start live tracking'}</button>
+              <button className="button-primary" type="button" onClick={onStartTracking} disabled={motionStatus === 'requesting'} data-testid="button-start-live-tracking"><Activity size={16} /> {motionStatus === 'requesting' ? 'Connecting…' : motionStatus === 'paused' ? 'Resume Live Step Tracking' : 'Enable Live Step Tracking'}</button>
               {(motionStatus === 'paused' || motionStatus === 'requesting') && <button className="button-quiet" type="button" onClick={onStopTracking} data-testid="button-cancel-live-tracking">Stop</button>}
             </>
           )}
         </div>
+      </section>
+
+      <section className="panel movement-hourly-panel" style={{ marginTop: 22 }} aria-labelledby="movement-hourly-heading">
+        <div className="panel-header">
+          <div><div className="section-label">Daily activity</div><h3 id="movement-hourly-heading">Steps by hour</h3><p>See when your movement happened today.</p></div>
+          <div className="hourly-count"><strong data-testid="text-hourly-steps">{hourlyTotal.toLocaleString()}</strong><span>timed steps</span></div>
+        </div>
+        <div className="hourly-chart" role="list" aria-label={`Hourly step activity for ${currentDate}`} data-testid="chart-hourly-steps">
+          <div className="hourly-grid" aria-hidden="true" />
+          {hourlySteps.map((count, hour) => (
+            <div className={`hourly-column${hour === new Date().getHours() && currentDate === dateKey(new Date()) ? ' is-current' : ''}`}
+              key={hour} role="listitem" aria-label={`${hourLabel(hour)}: ${count.toLocaleString()} steps`}
+              title={`${hourLabel(hour)} · ${count.toLocaleString()} steps`} data-testid={`bar-hour-${hour}`}>
+              <span className="hourly-bar" style={{ height: count > 0 ? `${Math.max(3, count / hourCeiling * 100)}%` : 0 }} />
+            </div>
+          ))}
+          {hourlyTotal === 0 && <p className="hourly-empty" aria-hidden="true">Your first steps will show up here.</p>}
+        </div>
+        <div className="hourly-axis" aria-hidden="true"><span>12 AM</span><span>6 AM</span><span>12 PM</span><span>6 PM</span></div>
+        {unassignedSteps > 0 && <p className="hourly-unassigned" data-testid="text-unassigned-steps">{unassignedSteps.toLocaleString()} earlier steps count toward today’s total but have no saved hour.</p>}
+        <p className="hourly-note">Live and manually added steps are recorded in the hour they’re added. Estimates depend on your phone’s motion sensor.</p>
       </section>
 
       <section className="panel movement-week-panel" style={{ marginTop: 22 }}>

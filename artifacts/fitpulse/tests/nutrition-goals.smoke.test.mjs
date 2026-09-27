@@ -376,6 +376,51 @@ test('custom nutrition goals update both views and persist after refresh', { tim
     assert.match(await evaluate(cdp, `document.querySelector('[data-testid="text-water-goal"]').textContent`), /50% of 3,000 ml goal/);
     assert.match(await evaluate(cdp, `document.querySelector('[data-testid="text-water-intake"]').textContent`), /1,500 ml/);
 
+    await navigateTo(cdp, 'steps');
+    await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector('[data-testid="chart-hourly-steps"]'))`), 'hourly activity chart');
+    await click(cdp, '[data-testid="button-add-500-steps"]');
+    await click(cdp, '[data-testid="button-add-1000-steps"]');
+    await click(cdp, '[data-testid="button-add-2500-steps"]');
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="text-step-total"]').textContent`), /4,000/);
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="text-step-progress"]').textContent`), /40%/);
+    const currentHour = await evaluate(cdp, `new Date().getHours()`);
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="bar-hour-${currentHour}"]').getAttribute('aria-label')`), /4,000 steps/);
+    await evaluate(cdp, `window.DeviceMotionEvent ??= function DeviceMotionEvent() {}; true`);
+    await click(cdp, '[data-testid="button-start-live-tracking"]');
+    await evaluate(cdp, `(() => {
+      const event = new Event('devicemotion');
+      Object.defineProperty(event, 'acceleration', { value: { x: 0, y: 0, z: 0 } });
+      window.dispatchEvent(event);
+      return true;
+    })()`);
+    await waitFor(async () => evaluate(cdp, `document.querySelector('[data-testid="status-motion-tracking"]')?.textContent.includes('Active Motion Sensor')`), 'live sensor reading');
+    await delay(370);
+    await evaluate(cdp, `(() => {
+      const event = new Event('devicemotion');
+      Object.defineProperty(event, 'acceleration', { value: { x: 0, y: 0, z: 4 } });
+      window.dispatchEvent(event);
+      return true;
+    })()`);
+    await waitFor(async () => evaluate(cdp, `document.querySelector('[data-testid="text-step-total"]')?.textContent.includes('4,001')`), 'live motion step');
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="bar-hour-${currentHour}"]').getAttribute('aria-label')`), /4,001 steps/);
+    await click(cdp, '[data-testid="button-stop-live-tracking"]');
+    if (process.env.MOVEMENT_SCREENSHOT_DIR) {
+      await cdp.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+      await evaluate(cdp, `document.querySelector('[data-testid="chart-hourly-steps"]').scrollIntoView({ behavior: 'instant', block: 'center' }); true`);
+      await delay(550);
+      const image = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      await writeFile(path.join(process.env.MOVEMENT_SCREENSHOT_DIR, 'fitpulse-hourly-movement.png'), Buffer.from(image.data, 'base64'));
+    }
+    const stepsReload = cdp.waitForEvent('Page.loadEventFired');
+    await cdp.send('Page.reload');
+    await stepsReload;
+    await navigateTo(cdp, 'steps');
+    await waitFor(async () => evaluate(cdp, `document.querySelector('[data-testid="text-step-total"]')?.textContent.includes('4,001')`), 'saved step total after refresh');
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="bar-hour-${currentHour}"]').getAttribute('aria-label')`), /4,001 steps/);
+    assert.equal(await evaluate(cdp, `Boolean(document.querySelector('[data-testid="text-unassigned-steps"]'))`), false);
+    await click(cdp, '[data-testid="button-reset-steps"]');
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="bar-hour-${currentHour}"]').getAttribute('aria-label')`), /0 steps/);
+
     await navigateTo(cdp, 'workout');
     await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector('[data-testid="section-strength-interval-timer"]'))`), 'interval timer module');
     await click(cdp, '[data-testid="button-preset-tabata"]');

@@ -35,6 +35,7 @@ type MacroLog = { id: string; meal: string; calories: number; protein: number; c
 type SetType = 'warmup' | 'working' | 'drop';
 type WorkoutSet = { id: string; exercise: string; weight: number; reps: number; estimatedOneRm: number; date: string; setType?: SetType };
 type StepsMap = Record<string, number>;
+type HourlyStepsMap = Record<string, number[]>;
 type PlanGoal = 'cut' | 'maintain' | 'bulk';
 type Sex = 'female' | 'male';
 type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'high';
@@ -45,6 +46,7 @@ const STORAGE = {
   macros: 'fitpulse-macros',
   workouts: 'fitpulse-workouts',
   steps: 'fitpulse-steps',
+  stepHours: 'fitpulse-step-hours',
   stride: 'fitpulse-stride-cm',
   water: 'fitpulse-water',
   waterGoal: 'fitpulse-water-goal',
@@ -94,6 +96,16 @@ function readStorage<T>(key: string, fallback: T): T {
   }
 }
 
+function readHourlySteps(): HourlyStepsMap {
+  const stored = readStorage<unknown>(STORAGE.stepHours, {});
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return {};
+  return Object.fromEntries(Object.entries(stored).filter(([day, hours]) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(day) &&
+    Array.isArray(hours) && hours.length === 24 &&
+    hours.every((count) => Number.isSafeInteger(count) && count >= 0),
+  )) as HourlyStepsMap;
+}
+
 function readMeals(): MacroLog[] {
   const stored = readStorage<MacroLog[]>(STORAGE.macros, []);
   if (!Array.isArray(stored)) return [];
@@ -136,6 +148,7 @@ function App() {
   const [macros, setMacros] = useState<MacroLog[]>(readMeals);
   const [workouts, setWorkouts] = useState<WorkoutSet[]>(() => readStorage(STORAGE.workouts, []));
   const [steps, setSteps] = useState<StepsMap>(() => readStorage(STORAGE.steps, {}));
+  const [stepHours, setStepHours] = useState<HourlyStepsMap>(readHourlySteps);
   const [waterHistory, setWaterHistory] = useState<StepsMap>(() => readStorage(STORAGE.water, {}));
   const [waterGoal, setWaterGoal] = useState(() => {
     const saved = readStorage<number>(STORAGE.waterGoal, 2000);
@@ -149,10 +162,20 @@ function App() {
   const [restSession, setRestSession] = useState<{ id: string; exercise: string; setType: SetType } | null>(null);
   const [storageError, setStorageError] = useState(false);
   const [currentDate, setCurrentDate] = useState(todayKey);
-  const motion = useMotionSteps(() => {
-    const day = todayKey();
-    setSteps((existing) => ({ ...existing, [day]: (existing[day] ?? 0) + 1 }));
+  const recordSteps = (amount: number) => {
+    const now = new Date();
+    const day = dateKey(now);
+    setSteps((existing) => ({ ...existing, [day]: amount < 0 ? 0 : (existing[day] ?? 0) + amount }));
+    setStepHours((existing) => {
+      const hours = [...(existing[day] ?? Array(24).fill(0))];
+      if (amount < 0) hours.fill(0);
+      else hours[now.getHours()] += amount;
+      return { ...existing, [day]: hours };
+    });
     setCurrentDate(day);
+  };
+  const motion = useMotionSteps(() => {
+    recordSteps(1);
   });
 
   useEffect(() => {
@@ -175,6 +198,7 @@ function App() {
   useEffect(() => { persist(STORAGE.macros, macros); }, [macros]);
   useEffect(() => { persist(STORAGE.workouts, workouts); }, [workouts]);
   useEffect(() => { persist(STORAGE.steps, steps); }, [steps]);
+  useEffect(() => { persist(STORAGE.stepHours, stepHours); }, [stepHours]);
   useEffect(() => { persist(STORAGE.water, waterHistory); }, [waterHistory]);
   useEffect(() => { persist(STORAGE.waterGoal, waterGoal); }, [waterGoal]);
   useEffect(() => { persist(STORAGE.stride, strideCm); }, [strideCm]);
@@ -317,6 +341,7 @@ function App() {
             {view === 'steps' && (
               <MovementPage
                 steps={steps}
+                hourlySteps={stepHours[currentDate] ?? Array(24).fill(0)}
                 todaySteps={todaySteps}
                 currentDate={currentDate}
                 target={profile.stepTarget}
@@ -327,9 +352,7 @@ function App() {
                 onStartTracking={motion.start}
                 onStopTracking={motion.stop}
                 onChange={(amount) => {
-                  const day = todayKey();
-                  setSteps((existing) => ({ ...existing, [day]: Math.max(0, (existing[day] ?? 0) + amount) }));
-                  setCurrentDate(day);
+                  recordSteps(amount);
                   setToast(amount < 0 ? 'Steps reset for today.' : `${amount.toLocaleString()} steps added.`);
                 }}
                 onSaveSettings={(goal, stride, weight) => {
