@@ -201,6 +201,10 @@ function App() {
                 logs={todayMacros}
                 onAdd={(log) => { setMacros((existing) => [log, ...existing]); setToast(`${log.meal} added to today.`); }}
                 onDelete={(id) => { setMacros((existing) => existing.filter((item) => item.id !== id)); setToast('Meal removed.'); }}
+                onSaveTargets={(targets) => {
+                  setProfile((existing) => ({ ...existing, ...targets }));
+                  setToast('Daily macro targets saved.');
+                }}
               />
             )}
             {view === 'workout' && (
@@ -363,13 +367,47 @@ function MealRow({ meal, onDelete }: { meal: MacroLog; onDelete?: (id: string) =
   return <div className="log-row" data-testid={`row-meal-${meal.id}`}><span className="log-dot" /><div className="log-copy"><strong>{meal.meal}</strong><span>{meal.protein}g protein · {meal.carbs}g carbs · {meal.fat}g fat</span></div><span className="log-value">{meal.calories} kcal</span>{onDelete && <button className="delete-button" onClick={() => onDelete(meal.id)} aria-label={`Delete ${meal.meal}`} data-testid={`button-delete-meal-${meal.id}`}><Trash2 size={15} /></button>}</div>;
 }
 
-function MacrosPage({ profile, logs, onAdd, onDelete }: { profile: Profile; logs: MacroLog[]; onAdd: (log: MacroLog) => void; onDelete: (id: string) => void }) {
+function MacrosPage({
+  profile,
+  logs,
+  onAdd,
+  onDelete,
+  onSaveTargets,
+}: {
+  profile: Profile;
+  logs: MacroLog[];
+  onAdd: (log: MacroLog) => void;
+  onDelete: (id: string) => void;
+  onSaveTargets: (targets: Pick<Profile, 'calorieTarget' | 'proteinTarget' | 'carbsTarget' | 'fatTarget'>) => void;
+}) {
   const [form, setForm] = useState({ meal: 'Breakfast', calories: '', protein: '', carbs: '', fat: '' });
   const [error, setError] = useState('');
+  const [targetForm, setTargetForm] = useState({
+    calories: String(profile.calorieTarget),
+    protein: String(profile.proteinTarget),
+    carbs: String(profile.carbsTarget),
+    fat: String(profile.fatTarget),
+  });
+  const [targetError, setTargetError] = useState('');
   const calories = logs.reduce((sum, item) => sum + item.calories, 0);
   const protein = logs.reduce((sum, item) => sum + item.protein, 0);
   const carbs = logs.reduce((sum, item) => sum + item.carbs, 0);
   const fat = logs.reduce((sum, item) => sum + item.fat, 0);
+  const saveTargets = (event: FormEvent) => {
+    event.preventDefault();
+    const targets = {
+      calorieTarget: numberValue(targetForm.calories),
+      proteinTarget: numberValue(targetForm.protein),
+      carbsTarget: numberValue(targetForm.carbs),
+      fatTarget: numberValue(targetForm.fat),
+    };
+    if (targets.calorieTarget < 1000 || targets.proteinTarget <= 0 || targets.carbsTarget <= 0 || targets.fatTarget <= 0) {
+      setTargetError('Enter at least 1,000 calories and positive macro targets.');
+      return;
+    }
+    onSaveTargets(targets);
+    setTargetError('');
+  };
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const values = { calories: numberValue(form.calories), protein: numberValue(form.protein), carbs: numberValue(form.carbs), fat: numberValue(form.fat) };
@@ -382,6 +420,28 @@ function MacrosPage({ profile, logs, onAdd, onDelete }: { profile: Profile; logs
   return (
     <>
       <header className="page-header"><div><div className="eyebrow">Fuel log · Today</div><h1>Macros that make sense.</h1><p>Log the meal, then get back to living. No food guilt, no spreadsheet energy.</p></div><div className="header-date"><strong>{calories.toLocaleString()} kcal</strong>of {profile.calorieTarget.toLocaleString()} target</div></header>
+      <section className="panel targets-panel">
+        <div className="panel-header">
+          <div>
+            <h3>Daily targets</h3>
+            <p>Choose your daily goals, then track each meal against them.</p>
+          </div>
+          <Target size={20} color="hsl(var(--primary))" />
+        </div>
+        <form onSubmit={saveTargets} noValidate>
+          <div className="target-form-grid">
+            <Field id="target-calories" label="Calories" suffix="kcal/day" value={targetForm.calories} onChange={(value) => setTargetForm({ ...targetForm, calories: value })} placeholder="2500" />
+            <Field id="target-protein" label="Protein" suffix="g/day" value={targetForm.protein} onChange={(value) => setTargetForm({ ...targetForm, protein: value })} placeholder="160" />
+            <Field id="target-carbs" label="Carbs" suffix="g/day" value={targetForm.carbs} onChange={(value) => setTargetForm({ ...targetForm, carbs: value })} placeholder="280" />
+            <Field id="target-fat" label="Fat" suffix="g/day" value={targetForm.fat} onChange={(value) => setTargetForm({ ...targetForm, fat: value })} placeholder="75" />
+          </div>
+          {targetError && <p className="error-text" style={{ marginTop: 13 }} data-testid="status-target-error">{targetError}</p>}
+          <div className="target-form-footer">
+            <span>Current focus: <strong>{profile.goal}</strong></span>
+            <button className="button-primary" type="submit" data-testid="button-save-daily-targets"><Check size={15} /> Save daily targets</button>
+          </div>
+        </form>
+      </section>
       <div className="content-grid">
         <section className="panel">
           <div className="panel-header"><div><h3>Log a meal</h3><p>Keep it useful, not perfect.</p></div><Apple size={20} color="hsl(var(--primary))" /></div>

@@ -208,6 +208,11 @@
 .section-label { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; font-weight: 700; color: hsl(var(--muted-foreground)); }
 
 .macro-summary { display: grid; grid-template-columns: 1.05fr 1fr; gap: 22px; align-items: center; }
+.targets-panel { margin-bottom: 22px; }
+.target-form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.target-form-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; }
+.target-form-footer > span { color: hsl(var(--muted-foreground)); font-size: 12px; }
+.target-form-footer > span strong { color: hsl(var(--foreground)); }
 .calorie-ring { width: 164px; height: 164px; margin: 0 auto; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(hsl(var(--primary)) var(--calorie-progress, 0%), hsl(var(--muted)) 0); position: relative; }
 .calorie-ring::before { content: ''; position: absolute; inset: 12px; border-radius: 50%; background: hsl(var(--card)); }
 .calorie-ring-content { position: relative; text-align: center; }
@@ -357,6 +362,8 @@
   .hero-streak { top: 24px; right: 24px; }
   .hero-streak strong { font-size: 30px; }
   .content-grid, .macro-summary, .steps-hero { grid-template-columns: 1fr; }
+  .target-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .target-form-footer { align-items: stretch; flex-direction: column; }
   .goal-options { grid-template-columns: 1fr; }
   .bmi-result-row { align-items: flex-start; }
   .motion-panel { align-items: flex-start; flex-direction: column; }
