@@ -326,7 +326,7 @@ function MacroBars({ protein, carbs, fat, targets }: { protein: number; carbs: n
     { label: 'Carbs', value: carbs, target: targets.carbsTarget, className: 'bar-carbs' },
     { label: 'Fat', value: fat, target: targets.fatTarget, className: 'bar-fat' },
   ];
-  return <div className="macro-bars">{rows.map((row) => <div key={row.label}><div className="macro-bar-top"><span>{row.label}</span><strong>{formatAmount(row.value)}g <span>/ {formatAmount(row.target)}g</span></strong></div><div className="bar-track"><div className={`bar-fill ${row.className}`} style={{ width: `${row.target > 0 ? Math.min(100, (row.value / row.target) * 100) : 0}%` }} /></div></div>)}</div>;
+  return <div className="macro-bars">{rows.map((row) => <div key={row.label}><div className="macro-bar-top"><span>{row.label}</span><strong>{formatAmount(row.value)}g <span>/ {formatAmount(row.target)}g</span></strong></div><div className="bar-track" data-testid={`progress-${row.label.toLowerCase()}`} role="progressbar" aria-label={`${row.label} progress`} aria-valuemin={0} aria-valuemax={row.target} aria-valuenow={Math.min(row.value, row.target)}><div className={`bar-fill ${row.className}`} style={{ width: `${row.target > 0 ? Math.min(100, (row.value / row.target) * 100) : 0}%` }} /></div></div>)}</div>;
 }
 
 function EmptyState({ icon: Icon, title, text, action, onClick }: { icon: LucideIcon; title: string; text: string; action?: string; onClick?: () => void }) {
@@ -427,9 +427,9 @@ function MacrosPage({
             <div className="form-actions"><button className="button-primary" type="submit" data-testid="button-submit-meal"><Plus size={15} /> Add meal</button></div>
           </form>
         </section>
-        <section className="panel">
+        <section className="panel" data-testid="card-macro-totals">
           <div className="panel-header"><div><h3>Today’s totals</h3><p>{logs.length ? 'A quick read of your fuel.' : 'Ready when you are.'}</p></div><div className="section-label">{Math.min(100, Math.round((calories / profile.calorieTarget) * 100))}% target</div></div>
-           <div className="macro-summary"><div className="calorie-ring" style={{ '--calorie-progress': `${Math.min(100, (calories / profile.calorieTarget) * 100)}%` } as CSSProperties}><div className="calorie-ring-content"><strong>{formatAmount(calories)}</strong><span>kcal in</span></div></div><MacroBars protein={protein} carbs={carbs} fat={fat} targets={profile} /></div>
+           <div className="macro-summary"><div className="calorie-ring" data-testid="progress-calories" role="progressbar" aria-label="Calories consumed" aria-valuemin={0} aria-valuemax={profile.calorieTarget} aria-valuenow={Math.min(calories, profile.calorieTarget)} style={{ '--calorie-progress': `${Math.min(100, (calories / profile.calorieTarget) * 100)}%` } as CSSProperties}><div className="calorie-ring-content"><strong>{formatAmount(calories)}</strong><span>kcal in</span></div></div><MacroBars protein={protein} carbs={carbs} fat={fat} targets={profile} /></div>
         </section>
       </div>
       <section className="panel" style={{ marginTop: 22 }}><div className="panel-header"><div><h3>Today’s meals</h3><p>Tap the bin if something needs correcting.</p></div><div className="section-label">{logs.length} {logs.length === 1 ? 'entry' : 'entries'}</div></div>{logs.length ? <div className="log-list">{logs.map((meal) => <MealRow key={meal.id} meal={meal} onDelete={onDelete} />)}</div> : <EmptyState icon={Utensils} title="Your meal log is clear" text="Start with whatever is in front of you. The useful habit is noticing." />}</section>

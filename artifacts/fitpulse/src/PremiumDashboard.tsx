@@ -219,7 +219,7 @@ export default function PremiumDashboard({
               <button className="fp-text-action" type="button" onClick={() => onNavigate('macros')} data-testid="button-view-macros">Nutrition details <ArrowRight size={14} /></button>
             </div>
             <div className="fp-nutrition-body">
-              <div className="fp-calorie-meter" style={{ '--meter-progress': `${calorieProgress}%` } as CSSProperties}>
+              <div className="fp-calorie-meter" data-testid="progress-calories" role="progressbar" aria-label="Calories consumed" aria-valuemin={0} aria-valuemax={profile.calorieTarget} aria-valuenow={Math.min(calories, profile.calorieTarget)} style={{ '--meter-progress': `${calorieProgress}%` } as CSSProperties}>
                 <div className="fp-meter-center">
                   <span>CONSUMED</span>
                   <strong data-testid="text-calorie-total">{formatAmount(calories)}</strong>
@@ -315,7 +315,7 @@ function MacroLine({ label, value, target, color }: { label: string; value: numb
   return (
     <div className={`fp-macro-line fp-macro-${color}${remaining < 0 ? ' is-over' : ''}`}>
       <div className="fp-macro-line-top"><span>{label}</span><strong>{formatAmount(value)}<small> / {formatAmount(target)}g</small></strong></div>
-      <div className="fp-macro-track"><i style={{ width: `${progress}%` }} /></div>
+      <div className="fp-macro-track" data-testid={`progress-${label.toLowerCase()}`} role="progressbar" aria-label={`${label} progress`} aria-valuemin={0} aria-valuemax={target} aria-valuenow={Math.min(value, target)}><i style={{ width: `${progress}%` }} /></div>
       <small className="fp-macro-remaining">{remaining >= 0 ? `${formatAmount(remaining)}g remaining` : `${formatAmount(Math.abs(remaining))}g over target`}</small>
     </div>
   );
