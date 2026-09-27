@@ -164,9 +164,9 @@ export default function PremiumDashboard({
           <div>
             <div className="fp-date-kicker"><span className="fp-live-dot" /> TODAY, {today.toUpperCase()}</div>
             <h1><span>Your day.</span><span className="fp-heading-accent">In progress.</span></h1>
-            <p data-testid="text-dashboard-greeting"><strong>{profile.name.split(' ')[0]},</strong> see your fuel, movement and strength at a glance.</p>
+            <p data-testid="text-dashboard-greeting" className="text-[13px]"><strong>{profile.name.split(' ')[0]},</strong> see your fuel, movement and strength at a glance.</p>
           </div>
-          <div className="fp-date-stamp"><span>YOUR DAILY CHECK-IN</span><strong data-testid="text-today-date">{today}</strong></div>
+          <div className="text-[45px]"><span>YOUR DAILY CHECK-IN</span><strong data-testid="text-today-date">{today}</strong></div>
         </header>
 
         <section className="fp-coach-card" id="premium-focus" data-testid="card-daily-ritual">
@@ -278,7 +278,6 @@ export default function PremiumDashboard({
 
         <footer className="fp-footer"><span><Activity size={14} /> FitPulse</span><span>Built around your life, not the other way around.</span></footer>
       </div>
-
       {mealDialogOpen && (
         <div className="fp-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setMealDialogOpen(false); }}>
           <section className="fp-dialog" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="fp-dialog-title" aria-describedby="fp-dialog-description">
