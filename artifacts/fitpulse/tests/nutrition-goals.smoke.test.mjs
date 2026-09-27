@@ -153,6 +153,13 @@ async function click(cdp, selector) {
   })()`);
 }
 
+async function navigateTo(cdp, view) {
+  await click(cdp, '[data-testid="button-mobile-menu"]');
+  const selector = `#fitpulse-mobile-navigation [data-testid="button-nav-${view}"]`;
+  await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector(${JSON.stringify(selector)}))`), `mobile navigation to ${view}`);
+  await click(cdp, selector);
+}
+
 async function readProgress(cdp, scope) {
   return evaluate(cdp, `(() => {
     const root = document.querySelector(${JSON.stringify(scope)});
@@ -228,9 +235,23 @@ test('custom nutrition goals update both views and persist after refresh', { tim
     await cdp.send('Page.enable');
     await cdp.send('Runtime.enable');
     await cdp.send('Page.navigate', { url: appUrl });
-    await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector('[data-testid="button-nav-macros"]'))`), 'FitPulse to render');
+    await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector('[data-testid="button-mobile-menu"]'))`), 'FitPulse to render');
+    const shell = await evaluate(cdp, `(() => {
+      const rect = document.querySelector('#root').getBoundingClientRect();
+      return {
+        width: rect.width,
+        left: rect.left,
+        expectedLeft: (document.documentElement.clientWidth - rect.width) / 2,
+        sidebarDisplay: getComputedStyle(document.querySelector('.fp-sidebar')).display,
+        mobileBarDisplay: getComputedStyle(document.querySelector('.fp-mobilebar')).display,
+      };
+    })()`);
+    assert.equal(shell.width, 430, 'the app should stay at a 430px maximum width on desktop');
+    assert.ok(Math.abs(shell.left - shell.expectedLeft) <= 1, 'the app should be centered in the usable viewport');
+    assert.equal(shell.sidebarDisplay, 'none', 'the desktop sidebar should not occupy the narrow shell');
+    assert.notEqual(shell.mobileBarDisplay, 'none', 'the mobile navigation trigger should be available');
 
-    await click(cdp, '[data-testid="button-nav-macros"]');
+    await navigateTo(cdp, 'macros');
     await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector('[data-testid="input-target-calories"]'))`), 'daily target form');
 
     await setInput(cdp, '[data-testid="input-meal-calories"]', 900);
@@ -255,7 +276,7 @@ test('custom nutrition goals update both views and persist after refresh', { tim
     });
     assert.match(await evaluate(cdp, `document.querySelector('[data-testid="card-macro-totals"]').textContent`), /50% target/);
 
-    await click(cdp, '[data-testid="button-nav-dashboard"]');
+    await navigateTo(cdp, 'dashboard');
     await waitFor(async () => evaluate(cdp, `document.querySelector('[data-testid="card-dashboard-macros"] [data-testid="progress-calories"]')?.getAttribute('aria-valuemax') === '1800'`), 'dashboard targets to update');
     const dashboardProgress = await readProgress(cdp, '[data-testid="card-dashboard-macros"]');
     assert.deepEqual(dashboardProgress, {
@@ -273,7 +294,7 @@ test('custom nutrition goals update both views and persist after refresh', { tim
     const refreshedDashboard = await readProgress(cdp, '[data-testid="card-dashboard-macros"]');
     assert.deepEqual(refreshedDashboard, dashboardProgress);
 
-    await click(cdp, '[data-testid="button-nav-macros"]');
+    await navigateTo(cdp, 'macros');
     await waitFor(async () => evaluate(cdp, `document.querySelector('[data-testid="input-target-fat"]')?.value === '40'`), 'saved macro form after refresh');
     const savedTargets = await evaluate(cdp, `Object.fromEntries(
       ['calories', 'protein', 'carbs', 'fat'].map((name) => [

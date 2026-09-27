@@ -1,3 +1,4 @@
 - [Nutrition history dates](nutrition-history-dates.md) — older meals can have uncertain dates; avoid treating migration-day entries as reliable historical trends.
 - [Canvas class edits](canvas-class-edits.md) — visual edits can replace semantic classes, leaving responsive CSS selectors unmatched.
 - [Motion session resume](motion-session-resume.md) — retain tracking intent after reload, but require a tap before claiming the sensor is live again.
+- [Centered FitPulse shell](centered-fitpulse-shell.md) — keep narrow-layout behavior on wide screens without resetting component spacing.

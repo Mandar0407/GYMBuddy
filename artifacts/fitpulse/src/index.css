@@ -88,9 +88,19 @@
     @apply font-sans antialiased bg-background text-foreground;
     margin: 0;
     min-width: 320px;
+    background-color: #f7f5ee;
+    overflow-x: hidden;
   }
   button, input, select { font: inherit; }
   button { cursor: pointer; }
+}
+
+#root {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100dvh;
+  margin-inline: auto;
+  container: fitpulse / inline-size;
 }
 
 @keyframes rise-in {
@@ -420,12 +430,12 @@
 .toast { position: fixed; z-index: 50; bottom: 24px; right: 24px; display: flex; align-items: center; gap: 10px; background: hsl(var(--foreground)); color: hsl(var(--background)); border-radius: 12px; padding: 13px 16px; box-shadow: var(--shadow-lift); font-size: 13px; font-weight: 600; animation: toast-in .25s ease both; }
 .toast svg { color: hsl(var(--accent)); }
 
-@media (max-width: 900px) {
+@container fitpulse (max-width: 900px) {
   .sidebar { width: 210px; }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .content-grid, .workout-layout, .planner-grid { grid-template-columns: 1fr; }
 }
-@media (max-width: 680px) {
+@container fitpulse (max-width: 680px) {
   .fitpulse-shell { display: block; }
   .sidebar { display: none; }
   .mobile-topbar { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 8px; }
