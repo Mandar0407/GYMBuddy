@@ -491,3 +491,60 @@
   .history-row .date-column { display: none; }
   .toast { left: 17px; right: 17px; bottom: 17px; }
 }
+
+/* Mobile-first touch and reading sizes for the app's shared screens. */
+#root .button-primary {
+  min-height: 52px;
+  padding: 12px 20px;
+  border-radius: 24px;
+  font-size: 16px;
+  font-weight: 700;
+}
+#root :is(.field input, .field select, .custom-steps-row input) {
+  width: 100%;
+  min-height: 52px;
+  border-radius: 12px;
+  font-size: 16px;
+}
+#root input::placeholder { color: #6b6258; opacity: 1; }
+#root :is(.panel, .metric-card, .movement-stat, .water-widget,
+  .goal-option, .macro-meter, .plan-calorie-result, .pr-banner, .empty-state) {
+  padding: 20px;
+  border-radius: 20px;
+  box-shadow: 0 6px 24px -4px rgba(0, 0, 0, .05);
+}
+#root :is(.page-header p, .header-date, .metric-card .metric-top, .metric-card small,
+  .metric-card strong span, .panel-header p, .section-label, .target-form-footer > span,
+  .calorie-ring span, .macro-bar-top, .macro-meter-foot, .water-widget-heading small,
+  .water-widget-total small, .water-widget-footer > span, .goal-option span,
+  .plan-calorie-result small, .plan-calorie-detail, .bmi-result-row p, .bmi-scale span,
+  .empty-state p, .log-copy span, .field-hint, .error-text, .pr-banner span,
+  .history-row span, .history-head, .history-exercise small, .steps-number span,
+  .steps-goal-copy, .movement-stat strong small, .movement-stat span,
+  .movement-estimate-note, .step-actions button span, .motion-copy small,
+  .motion-indicator, .weekly-legend, .day-value, .helper-note,
+  .custom-steps-form label, .field label, .field-label,
+  .weekly-bars .day-column > span, .weekly-bars .day-column > small) {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+#root .metric-card strong { font-size: 28px; font-weight: 700; }
+#root .set-type-option { min-height: 48px; border-radius: 14px; font-size: 14px; }
+#root .step-actions button { min-height: 48px; }
+#root .step-actions button span { color: hsl(var(--foreground)); }
+#root .movement-stat strong { font-size: 24px; font-weight: 700; }
+
+@container fitpulse (max-width: 520px) {
+  #root .movement-stats { grid-template-columns: 1fr; }
+  #root .movement-stat-calories { grid-column: auto; }
+  #root .bmi-scale { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #root .history-head { display: none; }
+  #root .history-row:not(.history-head) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+  }
+  #root .history-exercise { grid-column: 1 / -1; }
+  #root .history-row .date-column { grid-column: 1; }
+  #root .history-row .delete-button { grid-column: 2; grid-row: 3; }
+}

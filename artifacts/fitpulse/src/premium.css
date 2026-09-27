@@ -396,3 +396,72 @@
   .fp-macro-line-top strong small { font-size: 8px; }
   .fp-remaining > div:nth-child(2) { flex-basis: calc(100% - 45px); }
 }
+
+/* Shared, readable touch sizes for the narrow app shell. */
+.fp-premium :is(.fp-panel, .fp-stat, .fp-strength-card, .fp-coach-card) {
+  padding: 20px;
+  border-radius: 20px;
+  box-shadow: 0 6px 24px -4px rgba(0, 0, 0, .05);
+}
+.fp-premium :is(small, .fp-overline, .fp-gentle-tag, .fp-stat-top, .fp-stat-foot,
+  .fp-panel-heading p, .fp-text-action, .fp-meter-center > span, .fp-macro-line-top,
+  .fp-macro-remaining, .fp-remaining > div:nth-child(2) span,
+  .fp-remaining > div:nth-child(2) strong, .fp-meal-copy strong, .fp-meal-copy small,
+  .fp-meal-kcal, .fp-meal-footer, .fp-meals-empty p, .fp-strength-copy p,
+  .fp-strength-count span, .fp-footer, .fp-dialog-heading p, .fp-form-field,
+  .fp-meal-error, .fp-toast, .fp-coach-copy p, .fp-heading p, .fp-nav-item) {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.fp-premium .fp-page { padding-inline: 16px; }
+.fp-premium .fp-stat-strip { grid-template-columns: 1fr; gap: 14px; }
+.fp-premium .fp-stat:first-child { display: block; grid-column: auto; }
+.fp-premium .fp-stat > strong { font-size: 28px; font-weight: 700; }
+.fp-premium .fp-stat-foot,
+.fp-premium .fp-stat:first-child .fp-stat-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin: 10px 0 8px;
+}
+.fp-premium .fp-stat-foot span:last-child {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: normal;
+}
+.fp-premium .fp-nutrition-body { grid-template-columns: 1fr; gap: 20px; }
+.fp-premium .fp-macro-line-top { gap: 8px; }
+.fp-premium .fp-macro-line-top strong { font-size: 14px; white-space: normal; }
+.fp-premium .fp-remaining { flex-direction: column; align-items: stretch; gap: 10px; padding: 20px; border-radius: 20px; box-shadow: 0 6px 24px -4px rgba(0, 0, 0, .05); }
+.fp-premium .fp-remaining > div:nth-child(2) { flex: auto; min-width: 0; }
+.fp-premium .fp-remaining > div:nth-child(2) strong { white-space: normal; }
+.fp-premium .fp-remaining > button,
+.fp-premium .fp-submit-meal {
+  min-height: 52px;
+  justify-content: center;
+  padding: 12px 20px;
+  border-radius: 24px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.fp-premium .fp-remaining > button { width: 100%; margin-left: 0; }
+.fp-premium :is(.fp-text-action, .fp-round-add, .fp-meals-empty button,
+  .fp-strength-card > button, .fp-menu-toggle, .fp-dialog-close) { min-height: 48px; }
+.fp-premium :is(.fp-round-add, .fp-menu-toggle, .fp-dialog-close) { min-width: 48px; }
+.fp-premium :is(.fp-meals-empty button, .fp-strength-card > button) { font-size: 14px; }
+.fp-premium :is(.fp-form-field > input, .fp-form-field select, .fp-input-wrap) {
+  height: 52px;
+  border-radius: 12px;
+  font-size: 16px;
+}
+.fp-premium .fp-input-wrap input { height: 100%; font-size: 16px; }
+.fp-premium input::placeholder { color: #6b6258; opacity: 1; }
+.fp-premium .fp-meal-row { flex-wrap: wrap; gap: 8px; }
+
+@container fitpulse (max-width: 520px) {
+  .fp-premium .fp-mobile-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fp-premium .fp-mobile-nav .fp-nav-item { min-height: 48px; font-size: 14px; }
+}
