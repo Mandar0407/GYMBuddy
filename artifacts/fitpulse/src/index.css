@@ -302,19 +302,36 @@
 .history-row .one-rm { color: hsl(var(--primary)); font-weight: 700; }
 .history-head { color: hsl(var(--muted-foreground)); font-size: 10px; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; }
 
-.steps-hero { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: center; }
+.steps-hero { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: 24px; align-items: start; }
+.steps-overview, .steps-controls { min-width: 0; }
 .steps-number { font: 600 clamp(52px, 8vw, 83px)/.9 var(--app-font-serif); letter-spacing: -.08em; color: hsl(var(--foreground)); margin: 13px 0; }
 .steps-number span { font: 600 17px var(--app-font-sans); letter-spacing: 0; color: hsl(var(--muted-foreground)); }
 .steps-track { height: 13px; background: hsl(var(--muted)); border-radius: 20px; overflow: hidden; max-width: 480px; }
 .steps-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, hsl(var(--secondary-foreground)), hsl(var(--accent))); transition: width .5s ease; }
 .steps-goal-copy { display: flex; justify-content: space-between; max-width: 480px; margin-top: 8px; color: hsl(var(--muted-foreground)); font-size: 11px; }
-.movement-stats { display: flex; gap: 28px; margin-top: 25px; }
-.movement-stats strong { display: block; font: 600 24px var(--app-font-serif); letter-spacing: -.03em; }
-.movement-stats span { display: block; margin-top: 3px; color: hsl(var(--muted-foreground)); font-size: 11px; }
+.movement-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 25px; }
+.movement-stat { min-width: 0; padding: 13px 10px; border: 1px solid hsl(var(--border)); border-radius: 12px; background: hsl(var(--background) / .8); }
+.movement-stat-calories { border-color: hsl(var(--primary) / .25); background: hsl(var(--primary) / .07); }
+.movement-stat strong { display: block; font: 600 clamp(18px, 2vw, 24px) var(--app-font-serif); letter-spacing: -.03em; white-space: nowrap; }
+.movement-stat strong small { font: 600 11px var(--app-font-sans); letter-spacing: 0; }
+.movement-stat span { display: block; margin-top: 5px; color: hsl(var(--muted-foreground)); font-size: 10px; line-height: 1.35; }
+.movement-estimate-note { margin: 10px 0 0; color: hsl(var(--muted-foreground)); font-size: 11px; line-height: 1.4; }
+.movement-storage-error { margin: 0 0 16px; padding: 12px 14px; border: 1px solid hsl(var(--destructive) / .3); border-radius: 10px; color: hsl(var(--destructive)); background: hsl(var(--destructive) / .07); font-size: 12px; }
+.steps-controls-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.movement-settings-link { display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; color: hsl(var(--primary)); padding: 5px 0; font-size: 11px; font-weight: 700; }
+.movement-settings-link:hover { text-decoration: underline; }
 .step-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 .step-actions button { min-height: 58px; }
 .step-actions button span { display: block; font-size: 11px; color: hsl(var(--muted-foreground)); font-weight: 500; margin-top: 3px; }
+.custom-steps-form { margin-top: 16px; }
+.custom-steps-form label { display: block; margin-bottom: 8px; color: hsl(var(--foreground)); font-size: 12px; font-weight: 700; }
+.custom-steps-row { display: flex; gap: 8px; }
+.custom-steps-row input { min-width: 0; flex: 1; border: 1px solid hsl(var(--input)); border-radius: 10px; padding: 11px 12px; background: hsl(var(--background)); color: hsl(var(--foreground)); font-size: 13px; }
+.custom-steps-row input:focus { outline: 2px solid hsl(var(--primary) / .3); border-color: hsl(var(--primary)); }
+.custom-steps-row button { flex: 0 0 auto; }
+.custom-steps-form .error-text { margin-top: 7px; }
 .motion-panel { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.motion-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex: 0 0 auto; }
 .motion-copy h3 { margin: 12px 0 5px; font: 600 20px var(--app-font-serif); letter-spacing: -.03em; }
 .motion-copy p { margin: 0; color: hsl(var(--foreground)); font-size: 13px; }
 .motion-copy small { display: block; margin-top: 7px; color: hsl(var(--muted-foreground)); font-size: 11px; }
@@ -322,14 +339,24 @@
 .motion-indicator svg { color: hsl(var(--primary)); }
 .motion-indicator.active { color: hsl(var(--secondary-foreground)); }
 .motion-indicator.active svg { animation: pulse 1.4s ease-in-out infinite; }
-.weekly-bars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; align-items: end; height: 155px; }
-.day-column { display: grid; grid-template-rows: 1fr auto; gap: 9px; align-items: end; height: 100%; text-align: center; }
-.day-bar-area { height: 100%; display: flex; align-items: end; justify-content: center; }
-.day-bar { width: min(22px, 70%); border-radius: 7px 7px 3px 3px; background: hsl(var(--secondary-foreground)); opacity: .8; transition: height .35s ease; }
+.weekly-legend { display: flex; align-items: center; gap: 7px; margin: 18px 0 12px; color: hsl(var(--muted-foreground)); font-size: 11px; }
+.weekly-legend-today { width: 9px; height: 9px; border-radius: 3px; background: hsl(var(--primary)); }
+.weekly-legend-goal { width: 20px; margin-left: 12px; border-top: 1px dashed hsl(var(--primary)); }
+.weekly-bars { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; position: relative; }
+.weekly-goal-rule { position: absolute; z-index: 2; left: 0; right: 0; border-top: 1px dashed hsl(var(--primary) / .65); pointer-events: none; }
+.day-column { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; text-align: center; }
+.day-bar-area { height: 170px; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; border-bottom: 1px solid hsl(var(--border)); }
+.day-value { color: hsl(var(--foreground)); font-size: 10px; line-height: 1; font-weight: 700; white-space: nowrap; }
+.day-bar { width: min(34px, 70%); flex: 0 0 auto; border-radius: 7px 7px 3px 3px; background: hsl(var(--secondary-foreground)); opacity: .8; transition: height .35s ease; }
 .day-column.today .day-bar { background: hsl(var(--primary)); opacity: 1; }
-.day-column span { color: hsl(var(--muted-foreground)); font-size: 10px; }
+.day-column.today .day-value, .day-column.today span { color: hsl(var(--primary)); }
+.day-column.future { opacity: .45; }
+.day-column span { color: hsl(var(--muted-foreground)); font-size: 11px; font-weight: 700; }
+.day-column small { color: hsl(var(--muted-foreground)); font-size: 10px; }
 .helper-note { display: flex; gap: 10px; align-items: flex-start; padding: 13px; background: hsl(var(--secondary) / .5); border-radius: 12px; color: hsl(var(--secondary-foreground)); font-size: 12px; line-height: 1.45; }
 .helper-note svg { flex-shrink: 0; margin-top: 1px; }
+.movement-modal { max-height: calc(100dvh - 40px); overflow-y: auto; }
+.movement-form-hint { margin-top: 14px; line-height: 1.5; }
 
 .modal-backdrop { position: fixed; inset: 0; background: rgba(21,28,34,.5); z-index: 30; display: grid; place-items: center; padding: 20px; animation: rise-in .2s ease both; }
 .modal { width: min(100%, 460px); background: hsl(var(--card)); color: hsl(var(--foreground)); border: 1px solid hsl(var(--card-border)); border-radius: 20px; padding: 24px; box-shadow: var(--shadow-lift); }
@@ -362,11 +389,16 @@
   .hero-streak { top: 24px; right: 24px; }
   .hero-streak strong { font-size: 30px; }
   .content-grid, .macro-summary, .steps-hero { grid-template-columns: 1fr; }
+  .movement-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .movement-stat-calories { grid-column: 1 / -1; }
+  .weekly-bars { gap: 4px; }
+  .day-value { font-size: 9px; }
   .target-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .target-form-footer { align-items: stretch; flex-direction: column; }
   .goal-options { grid-template-columns: 1fr; }
   .bmi-result-row { align-items: flex-start; }
   .motion-panel { align-items: flex-start; flex-direction: column; }
+  .motion-actions { width: 100%; }
   .motion-panel .button-primary, .motion-panel .button-danger { width: 100%; }
   .metric-grid { gap: 9px; }
   .metric-card { padding: 14px; }

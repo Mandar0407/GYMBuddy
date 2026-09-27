@@ -4,7 +4,6 @@ import {
   Apple,
   ArrowRight,
   Award,
-  BarChart3,
   Calculator,
   Check,
   ChevronDown,
@@ -15,7 +14,6 @@ import {
   Info,
   Menu,
   Plus,
-  RotateCcw,
   Sparkles,
   Target,
   Trash2,
@@ -25,13 +23,14 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import PremiumDashboard from './PremiumDashboard';
+import MovementPage from './MovementPage';
+import { useMotionSteps } from './useMotionSteps';
 
 type View = 'dashboard' | 'macros' | 'workout' | 'steps' | 'plan';
 type Profile = { name: string; goal: string; weight: number; height: number; calorieTarget: number; proteinTarget: number; carbsTarget: number; fatTarget: number; stepTarget: number };
 type MacroLog = { id: string; meal: string; calories: number; protein: number; carbs: number; fat: number; time: string; date?: string };
 type WorkoutSet = { id: string; exercise: string; weight: number; reps: number; estimatedOneRm: number; date: string };
 type StepsMap = Record<string, number>;
-type MotionStatus = 'idle' | 'requesting' | 'active' | 'denied' | 'unsupported';
 type PlanGoal = 'cut' | 'maintain' | 'bulk';
 type Sex = 'female' | 'male';
 type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'high';
@@ -42,6 +41,7 @@ const STORAGE = {
   macros: 'fitpulse-macros',
   workouts: 'fitpulse-workouts',
   steps: 'fitpulse-steps',
+  stride: 'fitpulse-stride-cm',
 };
 
 const defaultProfile: Profile = {
@@ -53,7 +53,7 @@ const defaultProfile: Profile = {
   proteinTarget: 110,
   carbsTarget: 250,
   fatTarget: 70,
-  stepTarget: 9000,
+  stepTarget: 10000,
 };
 
 const mealOptions = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
@@ -130,8 +130,18 @@ function App() {
   const [macros, setMacros] = useState<MacroLog[]>(readMeals);
   const [workouts, setWorkouts] = useState<WorkoutSet[]>(() => readStorage(STORAGE.workouts, []));
   const [steps, setSteps] = useState<StepsMap>(() => readStorage(STORAGE.steps, {}));
+  const [strideCm, setStrideCm] = useState(() => {
+    const saved = readStorage<number>(STORAGE.stride, 74);
+    return Number.isFinite(saved) && saved >= 30 && saved <= 150 ? saved : 74;
+  });
   const [toast, setToast] = useState('');
+  const [storageError, setStorageError] = useState(false);
   const [currentDate, setCurrentDate] = useState(todayKey);
+  const motion = useMotionSteps(() => {
+    const day = todayKey();
+    setSteps((existing) => ({ ...existing, [day]: (existing[day] ?? 0) + 1 }));
+    setCurrentDate(day);
+  });
 
   useEffect(() => {
     const refreshDate = () => setCurrentDate(todayKey());
@@ -145,10 +155,15 @@ function App() {
     };
   }, []);
 
-  useEffect(() => { window.localStorage.setItem(STORAGE.profile, JSON.stringify(profile)); }, [profile]);
-  useEffect(() => { window.localStorage.setItem(STORAGE.macros, JSON.stringify(macros)); }, [macros]);
-  useEffect(() => { window.localStorage.setItem(STORAGE.workouts, JSON.stringify(workouts)); }, [workouts]);
-  useEffect(() => { window.localStorage.setItem(STORAGE.steps, JSON.stringify(steps)); }, [steps]);
+  const persist = (key: string, value: unknown) => {
+    try { window.localStorage.setItem(key, JSON.stringify(value)); }
+    catch { setStorageError(true); }
+  };
+  useEffect(() => { persist(STORAGE.profile, profile); }, [profile]);
+  useEffect(() => { persist(STORAGE.macros, macros); }, [macros]);
+  useEffect(() => { persist(STORAGE.workouts, workouts); }, [workouts]);
+  useEffect(() => { persist(STORAGE.steps, steps); }, [steps]);
+  useEffect(() => { persist(STORAGE.stride, strideCm); }, [strideCm]);
   useEffect(() => {
     if (!toast) return undefined;
     const timer = window.setTimeout(() => setToast(''), 3200);
@@ -261,17 +276,27 @@ function App() {
               />
             )}
             {view === 'steps' && (
-              <StepsPage
+              <MovementPage
                 steps={steps}
                 todaySteps={todaySteps}
-                profile={profile}
+                currentDate={currentDate}
                 target={profile.stepTarget}
+                weightKg={profile.weight}
+                strideCm={strideCm}
+                motionStatus={motion.status}
+                storageError={storageError || motion.storageError}
+                onStartTracking={motion.start}
+                onStopTracking={motion.stop}
                 onChange={(amount) => {
-                  setSteps((existing) => ({ ...existing, [currentDate]: Math.max(0, (existing[currentDate] ?? 0) + amount) }));
+                  const day = todayKey();
+                  setSteps((existing) => ({ ...existing, [day]: Math.max(0, (existing[day] ?? 0) + amount) }));
+                  setCurrentDate(day);
                   setToast(amount < 0 ? 'Steps reset for today.' : `${amount.toLocaleString()} steps added.`);
                 }}
-                onAutoStep={(amount) => {
-                  setSteps((existing) => ({ ...existing, [currentDate]: Math.max(0, (existing[currentDate] ?? 0) + amount) }));
+                onSaveSettings={(goal, stride, weight) => {
+                  setProfile((existing) => ({ ...existing, stepTarget: goal, weight }));
+                  setStrideCm(stride);
+                  setToast('Movement settings saved.');
                 }}
               />
             )}
@@ -566,141 +591,6 @@ function PRBanner({ workouts }: { workouts: WorkoutSet[] }) {
   const bestBefore = Math.max(0, ...workouts.filter((item) => item.id !== latest.id && item.exercise.toLowerCase() === latest.exercise.toLowerCase()).map((item) => item.estimatedOneRm));
   if (!latest || latest.estimatedOneRm <= bestBefore) return null;
   return <div className="pr-banner" data-testid="status-new-pr"><Award size={22} /><div><strong>New personal best</strong><span>{latest.exercise} is moving in the right direction.</span></div><span className="pr-value">{latest.estimatedOneRm} kg</span></div>;
-}
-
-function StepsPage({
-  steps,
-  todaySteps,
-  profile,
-  target,
-  onChange,
-  onAutoStep,
-}: {
-  steps: StepsMap;
-  todaySteps: number;
-  profile: Profile;
-  target: number;
-  onChange: (amount: number) => void;
-  onAutoStep: (amount: number) => void;
-}) {
-  const [tracking, setTracking] = useState(false);
-  const [motionStatus, setMotionStatus] = useState<MotionStatus>('idle');
-  const onAutoStepRef = useRef(onAutoStep);
-  const motionRef = useRef({ lastDynamicAcceleration: 0, lastStepAt: 0 });
-
-  useEffect(() => {
-    onAutoStepRef.current = onAutoStep;
-  }, [onAutoStep]);
-
-  useEffect(() => {
-    if (!tracking) return undefined;
-
-    const handleMotion = (event: DeviceMotionEvent) => {
-      const acceleration = event.accelerationIncludingGravity;
-      if (!acceleration) return;
-
-      const x = acceleration.x ?? 0;
-      const y = acceleration.y ?? 0;
-      const z = acceleration.z ?? 0;
-      const magnitude = Math.sqrt(x * x + y * y + z * z);
-      const dynamicAcceleration = Math.abs(magnitude - 9.81);
-      const now = performance.now();
-      const crossedPeak = dynamicAcceleration > 1.35 && motionRef.current.lastDynamicAcceleration <= 1.35;
-      const enoughTimeSinceLastStep = now - motionRef.current.lastStepAt > 300;
-
-      motionRef.current.lastDynamicAcceleration = dynamicAcceleration;
-      if (crossedPeak && enoughTimeSinceLastStep) {
-        motionRef.current.lastStepAt = now;
-        onAutoStepRef.current(1);
-      }
-    };
-
-    window.addEventListener('devicemotion', handleMotion);
-    return () => window.removeEventListener('devicemotion', handleMotion);
-  }, [tracking]);
-
-  const startTracking = async () => {
-    if (!('DeviceMotionEvent' in window)) {
-      setMotionStatus('unsupported');
-      return;
-    }
-
-    setMotionStatus('requesting');
-    const motionEvent = window.DeviceMotionEvent as typeof DeviceMotionEvent & {
-      requestPermission?: () => Promise<'granted' | 'denied'>;
-    };
-
-    try {
-      if (motionEvent.requestPermission) {
-        const permission = await motionEvent.requestPermission();
-        if (permission !== 'granted') {
-          setMotionStatus('denied');
-          return;
-        }
-      }
-      motionRef.current = { lastDynamicAcceleration: 0, lastStepAt: performance.now() };
-      setTracking(true);
-      setMotionStatus('active');
-    } catch {
-      setMotionStatus('denied');
-    }
-  };
-
-  const stopTracking = () => {
-    setTracking(false);
-    setMotionStatus('idle');
-  };
-
-  const days = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (6 - index));
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    return { key, label: new Intl.DateTimeFormat('en-US', { weekday: 'narrow' }).format(date), value: steps[key] ?? 0 };
-  });
-  const progress = Math.min(100, Math.round((todaySteps / target) * 100));
-  const strideLengthMeters = ((profile.height || 170) * 0.413) / 100;
-  const distanceKm = (todaySteps * strideLengthMeters) / 1000;
-  const distanceLabel = distanceKm < 10 ? distanceKm.toFixed(2) : distanceKm.toFixed(1);
-  const motionCopy = {
-    idle: 'Start live tracking to count steps from movement.',
-    requesting: 'Waiting for motion sensor access…',
-    active: 'Live motion tracking is on.',
-    denied: 'Motion access was blocked. You can still add steps manually.',
-    unsupported: 'Motion sensors are unavailable in this browser. Use manual add.',
-  }[motionStatus];
-
-  return (
-    <>
-      <header className="page-header"><div><div className="eyebrow">Movement · Today</div><h1>Take the long way.</h1><p>Steps are not a score. They are a gentle vote for more energy.</p></div><div className="header-date"><strong>{progress}% of goal</strong>{target.toLocaleString()} steps planned</div></header>
-      <section className="panel steps-hero">
-        <div>
-          <div className="section-label">Today’s movement</div>
-          <div className="steps-number" data-testid="text-step-total" aria-live="polite">{todaySteps.toLocaleString()} <span>steps</span></div>
-          <div className="steps-track"><div className="steps-fill" style={{ width: `${progress}%` }} /></div>
-          <div className="steps-goal-copy"><span>0</span><span>{target.toLocaleString()} goal</span></div>
-          <div className="movement-stats">
-            <div><strong>{distanceLabel} km</strong><span>estimated distance</span></div>
-            <div><strong>{Math.round(strideLengthMeters * 100)} cm</strong><span>estimated stride</span></div>
-          </div>
-        </div>
-        <div><div className="section-label">Quick add</div><div className="step-actions" style={{ marginTop: 14 }}><button className="button-quiet" onClick={() => onChange(500)} data-testid="button-add-500-steps"><Plus size={16} /> 500 <span>steps</span></button><button className="button-quiet" onClick={() => onChange(1000)} data-testid="button-add-1000-steps"><Plus size={16} /> 1,000 <span>steps</span></button><button className="button-quiet" onClick={() => onChange(2500)} data-testid="button-add-2500-steps"><Plus size={16} /> 2,500 <span>steps</span></button><button className="button-danger" onClick={() => onChange(-todaySteps)} disabled={!todaySteps} data-testid="button-reset-steps"><RotateCcw size={15} /> Reset <span>today</span></button></div></div>
-      </section>
-      <section className="panel motion-panel" style={{ marginTop: 22 }}>
-        <div className="motion-copy">
-          <div className={`motion-indicator${motionStatus === 'active' ? ' active' : ''}`}><Activity size={17} /><span>{motionStatus === 'active' ? 'Live' : 'Motion sensor'}</span></div>
-          <h3>Count steps as you move</h3>
-          <p>{motionCopy}</p>
-          <small>Keep FitPulse open while you walk. Your browser may ask for motion permission once.</small>
-        </div>
-        {tracking ? (
-          <button className="button-danger" onClick={stopTracking} data-testid="button-stop-live-tracking"><Activity size={16} /> Stop tracking</button>
-        ) : (
-          <button className="button-primary" onClick={startTracking} disabled={motionStatus === 'requesting'} data-testid="button-start-live-tracking"><Activity size={16} /> {motionStatus === 'requesting' ? 'Connecting…' : 'Start live tracking'}</button>
-        )}
-      </section>
-      <section className="panel" style={{ marginTop: 22 }}><div className="panel-header"><div><h3>Your week in motion</h3><p>A little visual proof that the days add up.</p></div><BarChart3 size={20} color="hsl(var(--secondary-foreground))" /></div><div className="weekly-bars">{days.map((day) => <div className={`day-column${day.key === todayKey() ? ' today' : ''}`} key={day.key} data-testid={`bar-steps-${day.key}`}><div className="day-bar-area"><div className="day-bar" style={{ height: `${day.value > 0 ? Math.max(4, Math.min(100, (day.value / target) * 100)) : 0}%` }} /></div><span>{day.label}</span></div>)}</div><div className="helper-note" style={{ marginTop: 20 }}><Info size={16} /> <span>Tip: add a walk to your day in one tap, then leave your phone alone. The goal is a rhythm you can return to.</span></div></section>
-    </>
-  );
 }
 
 function PlanPage({ profile, onApplyPlan }: { profile: Profile; onApplyPlan: (plan: PlanResult) => void }) {
