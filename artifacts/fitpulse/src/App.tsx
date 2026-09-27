@@ -15,6 +15,7 @@ import {
   Menu,
   Plus,
   Sparkles,
+  ChartNoAxesCombined,
   Target,
   Trash2,
   Utensils,
@@ -24,12 +25,14 @@ import {
 } from 'lucide-react';
 import PremiumDashboard from './PremiumDashboard';
 import MovementPage from './MovementPage';
+import WeeklyInsightsPage from './WeeklyInsightsPage';
+import { buildWeeklyInsights } from './weeklyInsights';
 import RestTimer from './RestTimer';
 import StrengthIntervalTimer from './StrengthIntervalTimer';
 import WaterIntakeCard from './WaterIntakeCard';
 import { useMotionSteps } from './useMotionSteps';
 
-type View = 'dashboard' | 'macros' | 'workout' | 'steps' | 'plan';
+type View = 'dashboard' | 'macros' | 'workout' | 'steps' | 'insights' | 'plan';
 type Profile = { name: string; goal: string; weight: number; height: number; calorieTarget: number; proteinTarget: number; carbsTarget: number; fatTarget: number; stepTarget: number };
 type MacroLog = { id: string; meal: string; calories: number; protein: number; carbs: number; fat: number; time: string; date?: string };
 type SetType = 'warmup' | 'working' | 'drop';
@@ -77,6 +80,7 @@ const navItems: { id: View; label: string; icon: LucideIcon }[] = [
   { id: 'macros', label: 'Nutrition', icon: Apple },
   { id: 'workout', label: 'Strength', icon: Dumbbell },
   { id: 'steps', label: 'Movement', icon: Footprints },
+  { id: 'insights', label: 'Insights', icon: ChartNoAxesCombined },
   { id: 'plan', label: 'My plan', icon: Target },
 ];
 
@@ -151,6 +155,7 @@ function formatAmount(value: number) {
 
 function App() {
   const [view, setView] = useState<View>('dashboard');
+  const [weekOffset, setWeekOffset] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileTriggerRef = useRef<HTMLButtonElement>(null);
@@ -230,6 +235,10 @@ function App() {
   const carbs = todayMacros.reduce((total, item) => total + item.carbs, 0);
   const fat = todayMacros.reduce((total, item) => total + item.fat, 0);
   const workoutCount = workouts.filter((item) => item.date === currentDate).length;
+  const weeklyInsight = view === 'insights' ? buildWeeklyInsights({
+    todayKey: currentDate, weekOffset, steps, water: waterHistory, meals: macros, workouts,
+    stepGoal: profile.stepTarget, waterGoal, calorieGoal: profile.calorieTarget,
+  }) : null;
 
   const saveProfile = (nextProfile: Profile) => {
     setProfile(nextProfile);
@@ -276,8 +285,8 @@ function App() {
               </button>
             </div>
           </div>
-          <nav className="fp-top-tabs" aria-label="Quick navigation" style={{ '--active-tab': Math.max(0, navItems.slice(0, 4).findIndex((item) => item.id === view)) } as CSSProperties}>
-            {navItems.slice(0, 4).map((item) => (
+          <nav className="fp-top-tabs" aria-label="Quick navigation" style={{ '--active-tab': Math.max(0, navItems.slice(0, 5).findIndex((item) => item.id === view)) } as CSSProperties}>
+            {navItems.slice(0, 5).map((item) => (
               <button
                 key={item.id}
                 type="button"
@@ -370,6 +379,12 @@ function App() {
                   setStrideOverrideCm(strideOverride);
                   setToast('Movement settings saved.');
                 }}
+              />
+            )}
+            {view === 'insights' && weeklyInsight && (
+              <WeeklyInsightsPage insight={weeklyInsight} weekOffset={weekOffset}
+                onWeekChange={setWeekOffset}
+                onNavigate={navigate}
               />
             )}
             {view === 'plan' && (

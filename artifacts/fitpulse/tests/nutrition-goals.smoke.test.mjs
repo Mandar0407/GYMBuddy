@@ -447,6 +447,31 @@ test('custom nutrition goals update both views and persist after refresh', { tim
     await click(cdp, '[data-testid="button-cancel-movement-settings"]');
     assert.match(await evaluate(cdp, `document.querySelector('[data-testid="bar-hour-${currentHour}"]').getAttribute('aria-label')`), /4,001 steps/);
     assert.equal(await evaluate(cdp, `Boolean(document.querySelector('[data-testid="text-unassigned-steps"]'))`), false);
+    await navigateTo(cdp, 'insights');
+    await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector('[data-testid="page-weekly-insights"]'))`), 'weekly insights view');
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="text-weekly-steps-total"]').textContent`), /4,001/);
+    const today = await evaluate(cdp, `(() => { const d = new Date(); return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-'); })()`);
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="bar-weekly-steps-${today}"]').getAttribute('aria-label')`), /4,001 steps recorded/);
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="button-next-week"]').disabled`), true);
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="bar-weekly-water-${today}"]').getAttribute('aria-label')`), /ml of water logged/);
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="bar-weekly-nutrition-${today}"]').getAttribute('aria-label')`), /kcal of food logged/);
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="bar-weekly-strength-${today}"]').getAttribute('aria-label')`), /no log/);
+    if (process.env.INSIGHTS_SCREENSHOT_DIR) {
+      await cdp.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+      await evaluate(cdp, `window.scrollTo({ top: 0, behavior: 'instant' }); true`);
+      await delay(400);
+      const image = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      await writeFile(path.join(process.env.INSIGHTS_SCREENSHOT_DIR, 'fitpulse-weekly-insights.png'), Buffer.from(image.data, 'base64'));
+      await evaluate(cdp, `document.querySelector('.wi-detail-grid').scrollIntoView({ behavior: 'instant', block: 'start' }); window.scrollBy({ top: -135, behavior: 'instant' }); true`);
+      await delay(250);
+      const lowerImage = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      await writeFile(path.join(process.env.INSIGHTS_SCREENSHOT_DIR, 'fitpulse-weekly-details.png'), Buffer.from(lowerImage.data, 'base64'));
+    }
+    await click(cdp, '[data-testid="button-previous-week"]');
+    await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector('[data-testid="empty-weekly-insights"]'))`), 'empty previous week');
+    await click(cdp, '[data-testid="button-next-week"]');
+    await waitFor(async () => evaluate(cdp, `document.querySelector('[data-testid="text-weekly-steps-total"]')?.textContent.includes('4,001')`), 'current week after browsing');
+    await navigateTo(cdp, 'steps');
     await click(cdp, '[data-testid="button-reset-steps"]');
     assert.match(await evaluate(cdp, `document.querySelector('[data-testid="bar-hour-${currentHour}"]').getAttribute('aria-label')`), /0 steps/);
 
