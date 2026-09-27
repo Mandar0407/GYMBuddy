@@ -62,7 +62,7 @@
 .fp-heading p { margin: 0; color: var(--fp-muted); font-size: 13px; }
 .fp-date-stamp { padding: 0 0 4px; text-align: right; }
 .fp-date-stamp span, .fp-date-stamp strong { display: block; }
-.fp-date-stamp span { color: #9a9185; font-size: 8px; font-weight: 700; letter-spacing: .16em; }
+.fp-date-stamp span { color: #9a9185; font-size: 9px; font-weight: 700; letter-spacing: .16em; }
 .fp-date-stamp strong { margin-top: 7px; font: 600 13px 'Manrope', sans-serif; }
 .fp-mobile-break { display: none; }
 .fp-coach-card {
@@ -103,9 +103,9 @@
 .fp-stat-steps .fp-stat-icon { color: #594c74; background: #e0d7ed; }
 .fp-stat > strong { display: block; margin-top: 10px; font: 700 26px/1 'Manrope', sans-serif; letter-spacing: -.07em; }
 .fp-stat > strong small { font: 600 10px 'DM Sans', sans-serif; letter-spacing: 0; color: #898175; }
-.fp-stat-foot { display: flex; justify-content: space-between; gap: 6px; margin: 8px 0 7px; color: #92897e; font-size: 9px; }
+.fp-stat-foot { display: flex; justify-content: space-between; gap: 6px; margin: 8px 0 7px; color: #81786d; font-size: 10px; }
 .fp-stat-foot span:last-child { color: var(--fp-ink); font-weight: 700; white-space: nowrap; }
-.fp-mini-track { height: 4px; overflow: hidden; border-radius: 6px; background: #ece4d8; }
+.fp-mini-track { height: 5px; overflow: hidden; border-radius: 6px; background: #ece4d8; }
 .fp-mini-track i { display: block; height: 100%; border-radius: inherit; background: var(--fp-orange); transition: width .55s cubic-bezier(.2,.75,.25,1); }
 .fp-stat-protein .fp-mini-track i { background: var(--fp-green); }
 .fp-stat-steps .fp-mini-track i { background: #8b73b9; }
@@ -113,14 +113,14 @@
 .fp-panel { min-width: 0; padding: 20px; border: 1px solid rgba(111,87,56,.1); border-radius: 15px; background: var(--fp-card); box-shadow: 0 5px 18px rgba(61,47,31,.035); }
 .fp-panel-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .fp-panel-heading h3 { margin: 6px 0 0; font: 700 19px/1.1 'Manrope', sans-serif; letter-spacing: -.05em; }
-.fp-panel-heading p { margin: 5px 0 0; color: var(--fp-muted); font-size: 10px; }
+.fp-panel-heading p { margin: 5px 0 0; color: var(--fp-muted); font-size: 11px; }
 .fp-text-action { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; margin-top: 2px; padding: 7px 0 7px 6px; border: 0; color: var(--fp-orange-dark); background: transparent; font-size: 10px; font-weight: 700; transition: gap .2s; }
 .fp-text-action:hover { gap: 9px; }
 .fp-nutrition-body { display: grid; grid-template-columns: minmax(128px,.85fr) minmax(140px,1.15fr); align-items: center; gap: 19px; padding: 20px 5px 17px; }
 .fp-calorie-meter { position: relative; display: grid; place-items: center; width: min(100%, 157px); aspect-ratio: 1; margin: 0 auto; border-radius: 50%; background: conic-gradient(var(--fp-orange) var(--meter-progress), #eee5d9 0); transform: rotate(-90deg); }
 .fp-calorie-meter::before { content: ''; position: absolute; inset: 9px; border-radius: inherit; background: var(--fp-card); }
 .fp-meter-center { position: relative; z-index: 1; display: grid; justify-items: center; transform: rotate(90deg); }
-.fp-meter-center > span { color: #a0988a; font-size: 7px; font-weight: 800; letter-spacing: .15em; }
+.fp-meter-center > span { color: #8b8276; font-size: 8px; font-weight: 800; letter-spacing: .15em; }
 .fp-meter-center strong { margin: 5px 0 1px; font: 700 29px/1 'Manrope', sans-serif; letter-spacing: -.075em; }
 .fp-meter-center small { color: #91887c; font-size: 9px; }
 .fp-macro-list { display: grid; gap: 14px; }
@@ -131,11 +131,12 @@
 .fp-macro-track i { display: block; height: 100%; border-radius: inherit; background: var(--fp-green); transition: width .5s ease; }
 .fp-macro-carbs .fp-macro-track i { background: #d6a94a; }
 .fp-macro-fat .fp-macro-track i { background: #e97959; }
-.fp-macro-remaining { display: block; margin-top: 4px; color: #a19a8e; font-size: 8px; }
+.fp-macro-remaining { display: block; margin-top: 4px; color: #81786d; font-size: 9px; }
+.fp-macro-line.is-over .fp-macro-remaining { color: var(--fp-orange-dark); font-weight: 700; }
 .fp-remaining { display: flex; align-items: center; gap: 10px; padding: 11px; border-radius: 10px; background: #f4eee3; }
 .fp-remaining-mark { display: grid; place-items: center; width: 27px; height: 27px; flex: 0 0 auto; border-radius: 8px; color: var(--fp-orange-dark); background: #f8dfd4; }
 .fp-remaining > div:nth-child(2) { flex: 1; min-width: 0; }
-.fp-remaining > div:nth-child(2) span { display: block; color: #948a7c; font-size: 7px; font-weight: 800; letter-spacing: .11em; }
+.fp-remaining > div:nth-child(2) span { display: block; color: #81776a; font-size: 8px; font-weight: 800; letter-spacing: .11em; }
 .fp-remaining > div:nth-child(2) strong { display: block; margin-top: 3px; font: 700 10px 'Manrope', sans-serif; white-space: nowrap; }
 .fp-remaining > div:nth-child(2) i { padding: 0 3px; color: #ab9e8d; font-style: normal; }
 .fp-remaining > button { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; padding: 7px 9px; border: 0; border-radius: 8px; color: #fff9ee; background: var(--fp-orange); font-size: 9px; font-weight: 700; transition: background .18s, transform .18s; }
@@ -151,7 +152,7 @@
 .fp-meal-marker-1 { color: #446e60; background: #e5eee5; }
 .fp-meal-copy { flex: 1; min-width: 0; }
 .fp-meal-copy strong { display: block; font-size: 11px; font-weight: 700; }
-.fp-meal-copy small { display: flex; align-items: center; gap: 4px; margin-top: 4px; color: #928a7f; font-size: 9px; }
+.fp-meal-copy small { display: flex; align-items: center; gap: 4px; margin-top: 4px; color: #81786d; font-size: 9px; white-space: nowrap; }
 .fp-meal-copy small i { padding: 0 1px; color: #b8ab99; font-style: normal; }
 .fp-meal-kcal { font: 700 11px 'Manrope', sans-serif; white-space: nowrap; }
 .fp-meal-kcal small { color: #938b7e; font: 500 9px 'DM Sans', sans-serif; }

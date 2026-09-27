@@ -82,6 +82,9 @@ export function Premium() {
   );
   const calorieProgress = Math.min(100, Math.round((totals.calories / profile.calorieTarget) * 100));
   const stepsProgress = Math.min(100, Math.round((6500 / profile.stepTarget) * 100));
+  const caloriesRemaining = profile.calorieTarget - totals.calories;
+  const proteinRemaining = profile.proteinTarget - totals.protein;
+  const stepsRemaining = profile.stepTarget - 6500;
   const today = dateLabel();
 
   const navigate = (view: View) => {
@@ -194,19 +197,19 @@ export function Premium() {
               <article className="fp-stat fp-stat-calories">
                 <div className="fp-stat-top"><span className="fp-stat-icon"><Flame size={16} /></span><span>FOOD</span></div>
                 <strong>{totals.calories.toLocaleString()}<small> kcal</small></strong>
-                <div className="fp-stat-foot"><span>{calorieProgress}% of daily target</span><span>{(profile.calorieTarget - totals.calories).toLocaleString()} left</span></div>
+                <div className="fp-stat-foot"><span>{calorieProgress}% of daily target</span><span>{caloriesRemaining >= 0 ? `${caloriesRemaining.toLocaleString()} left` : `${Math.abs(caloriesRemaining).toLocaleString()} over`}</span></div>
                 <div className="fp-mini-track"><i style={{ width: `${calorieProgress}%` }} /></div>
               </article>
               <article className="fp-stat fp-stat-protein">
                 <div className="fp-stat-top"><span className="fp-stat-icon"><Target size={16} /></span><span>PROTEIN</span></div>
                 <strong>{totals.protein}<small> g</small></strong>
-                <div className="fp-stat-foot"><span>Fuel for strength</span><span>{profile.proteinTarget - totals.protein}g left</span></div>
+                <div className="fp-stat-foot"><span>Fuel for strength</span><span>{proteinRemaining >= 0 ? `${proteinRemaining}g left` : `${Math.abs(proteinRemaining)}g over`}</span></div>
                 <div className="fp-mini-track"><i style={{ width: `${Math.min(100, (totals.protein / profile.proteinTarget) * 100)}%` }} /></div>
               </article>
               <article className="fp-stat fp-stat-steps" id="premium-movement">
                 <div className="fp-stat-top"><span className="fp-stat-icon"><Footprints size={16} /></span><span>MOVEMENT</span></div>
                 <strong>{(6500).toLocaleString()}<small> steps</small></strong>
-                <div className="fp-stat-foot"><span>{stepsProgress}% of daily goal</span><span>2,500 to go</span></div>
+                <div className="fp-stat-foot"><span>{stepsProgress}% of daily goal</span><span>{stepsRemaining >= 0 ? `${stepsRemaining.toLocaleString()} to go` : `${Math.abs(stepsRemaining).toLocaleString()} over`}</span></div>
                 <div className="fp-mini-track"><i style={{ width: `${stepsProgress}%` }} /></div>
               </article>
             </section>
@@ -233,7 +236,7 @@ export function Premium() {
                 </div>
                 <div className="fp-remaining">
                   <div className="fp-remaining-mark"><ArrowDownRight size={17} /></div>
-                  <div><span>STILL IN YOUR DAILY PLAN</span><strong>{(profile.calorieTarget - totals.calories).toLocaleString()} kcal <i>·</i> {profile.proteinTarget - totals.protein}g protein</strong></div>
+                  <div><span>YOUR DAILY PLAN</span><strong>{caloriesRemaining >= 0 ? `${caloriesRemaining.toLocaleString()} kcal left` : `${Math.abs(caloriesRemaining).toLocaleString()} kcal over`} <i>·</i> {proteinRemaining >= 0 ? `${proteinRemaining}g protein left` : `${Math.abs(proteinRemaining)}g protein over`}</strong></div>
                   <button type="button" onClick={() => setMealDialogOpen(true)}>Log food <Plus size={15} /></button>
                 </div>
               </section>
@@ -248,7 +251,7 @@ export function Premium() {
                     {meals.slice(0, 4).map((meal, index) => (
                       <div className="fp-meal-row" key={meal.id}>
                         <span className={`fp-meal-marker fp-meal-marker-${index % 2}`}><Utensils size={15} /></span>
-                        <span className="fp-meal-copy"><strong>{meal.meal}</strong><small><Clock3 size={11} /> {meal.time} <i>·</i> {meal.protein}g protein</small></span>
+                        <span className="fp-meal-copy"><strong>{meal.meal}</strong><small><Clock3 size={11} /> {meal.time} <i>·</i> P {meal.protein}g <i>·</i> C {meal.carbs}g <i>·</i> F {meal.fat}g</small></span>
                         <strong className="fp-meal-kcal">{meal.calories.toLocaleString()} <small>kcal</small></strong>
                       </div>
                     ))}
@@ -324,5 +327,6 @@ function NavItem({ item, active, onClick }: { item: (typeof navItems)[number]; a
 
 function MacroLine({ label, value, target, color }: { label: string; value: number; target: number; color: string }) {
   const progress = Math.min(100, Math.round((value / target) * 100));
-  return <div className={`fp-macro-line fp-macro-${color}`}><div className="fp-macro-line-top"><span>{label}</span><strong>{value}<small> / {target}g</small></strong></div><div className="fp-macro-track"><i style={{ width: `${progress}%` }} /></div><small className="fp-macro-remaining">{Math.max(0, target - value)}g remaining</small></div>;
+  const remaining = target - value;
+  return <div className={`fp-macro-line fp-macro-${color}${remaining < 0 ? ' is-over' : ''}`}><div className="fp-macro-line-top"><span>{label}</span><strong>{value}<small> / {target}g</small></strong></div><div className="fp-macro-track"><i style={{ width: `${progress}%` }} /></div><small className="fp-macro-remaining">{remaining >= 0 ? `${remaining}g remaining` : `${Math.abs(remaining)}g over target`}</small></div>;
 }
