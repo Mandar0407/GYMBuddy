@@ -114,7 +114,7 @@ export default function MovementPage({
         <p>On iPhone, the companion reads device step history when opened, including walks while the screen was locked. Android locked-screen history is not available in this version.</p>
         {pairedKey ? (
           <>
-            <p>Enter this private pairing key in FitPulse Mobile. Anyone with it can see and change your movement data.</p>
+            <p>Enter this private pairing key in FitPulse Mobile. It is saved in this browser and visible to anyone with access to its browser storage. Anyone with the key can see and change your movement data; use a trusted device.</p>
             <code style={{ overflowWrap: 'anywhere', display: 'block', padding: 12, background: 'hsl(var(--muted))', borderRadius: 10 }} data-testid="movement-pairing-key">{pairedKey}</code>
             <p>When phone data arrives, it replaces older browser-estimated steps for the same day to avoid double-counting. Manual steps added after pairing are kept separately. Previous browser entries for that day cannot be identified as manual and are not carried into the paired total.</p>
           </>

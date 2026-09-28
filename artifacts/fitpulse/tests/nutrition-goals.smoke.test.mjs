@@ -640,6 +640,26 @@ test('custom nutrition goals update both views and persist after refresh', { tim
     assert.match(await evaluate(cdp, `document.querySelector('[data-testid="status-target-error"]')?.textContent`), /1,000–10,000/, 'extreme targets are rejected');
     const intactProfile = await evaluate(cdp, `JSON.parse(localStorage.getItem('fitpulse-profile')).calorieTarget`);
     assert.notEqual(intactProfile, 999999999, 'invalid target does not replace saved profile');
+    await navigateTo(cdp, 'plan');
+    await setInput(cdp, '[data-testid="input-plan-weight"]', '500');
+    await setInput(cdp, '[data-testid="input-plan-height"]', '230');
+    await setInput(cdp, '[data-testid="input-plan-age"]', '14');
+    await evaluate(cdp, `(() => {
+      const input = document.querySelector('[data-testid="select-plan-activity"]');
+      input.value = 'high';
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="button-apply-plan"]').disabled`), true, 'out-of-range generated plan cannot replace saved goals');
+    assert.match(await evaluate(cdp, `document.querySelector('.plan-validation')?.textContent`), /supported target range/);
+    await evaluate(cdp, `localStorage.setItem('fitpulse-workouts', JSON.stringify([
+      {id:'invalid-date',exercise:'Squat',weight:70,reps:5,date:'2026-02-31'},
+      ...JSON.parse(localStorage.getItem('fitpulse-workouts'))
+    ]))`);
+    const invalidDateReload = cdp.waitForEvent('Page.loadEventFired');
+    await cdp.send('Page.reload');
+    await invalidDateReload;
+    await navigateTo(cdp, 'workout');
+    assert.equal(await evaluate(cdp, `Boolean(document.querySelector('[data-testid="row-workout-invalid-date"]'))`), false, 'malformed saved workout date is rejected without crashing');
   } catch (error) {
     error.message += `\nVite output:\n${serverOutput}\nChromium output:\n${browserOutput}`;
     throw error;

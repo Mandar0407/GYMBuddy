@@ -8,3 +8,4 @@
 - [Workout completion semantics](workout-completion.md) — completed workouts need an explicit user action and member sets, not inferred session counts.
 - [React type-version drift](react-type-version-drift.md) — minor-version type splits can break ref compatibility across library boundaries without a runtime bug.
 - [Scoped package installs](scoped-package-installs.md) — the generic installer cannot target a pnpm workspace package; use a filtered package-manager command.
+- [Browser-local privacy](browser-local-privacy.md) — FitPulse keeps browser-local profile and pairing data visible rather than using reversible obfuscation.

@@ -103,6 +103,12 @@ function todayKey() {
   return dateKey(new Date());
 }
 
+function validDateKey(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T12:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 function readStorage<T>(key: string, fallback: T): T {
   try {
     const value = window.localStorage.getItem(key);
@@ -135,7 +141,7 @@ function readDailyCounts(key: string, max: number): StepsMap {
   const value = readStorage<unknown>(key, {});
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return Object.fromEntries(Object.entries(value).filter(([date, count]) =>
-    /^\d{4}-\d{2}-\d{2}$/.test(date) && boundedNumber(count, 0, max, true))) as StepsMap;
+    validDateKey(date) && boundedNumber(count, 0, max, true))) as StepsMap;
 }
 
 function readWorkouts(): WorkoutSet[] {
@@ -145,7 +151,7 @@ function readWorkouts(): WorkoutSet[] {
     typeof item.id === 'string' && item.id.length <= 100 &&
     typeof item.exercise === 'string' && plainText(item.exercise, 120).length > 0 &&
     boundedNumber(item.weight, 0.01, 500) && boundedNumber(item.reps, 1, 30, true) &&
-    typeof item.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.date) &&
+    validDateKey(item.date) &&
     (item.setType === undefined || ['warmup', 'working', 'drop', 'failure'].includes(item.setType)))
     .map((item) => ({ ...item, exercise: plainText(item.exercise, 120), estimatedOneRm: calculatedOneRm(item) }));
 }
@@ -163,7 +169,7 @@ function readHourlySteps(): HourlyStepsMap {
   const stored = readStorage<unknown>(STORAGE.stepHours, {});
   if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return {};
   return Object.fromEntries(Object.entries(stored).filter(([day, hours]) =>
-    /^\d{4}-\d{2}-\d{2}$/.test(day) &&
+    validDateKey(day) &&
     Array.isArray(hours) && hours.length === 24 &&
     hours.every((count) => boundedNumber(count, 0, 100000, true)),
   )) as HourlyStepsMap;
@@ -180,7 +186,7 @@ function readMeals(): MacroLog[] {
     typeof meal.time === 'string')
     .map((meal) => {
     const safeMeal = { ...meal, meal: plainText(meal.meal, 120), time: plainText(meal.time, 40) };
-    if (meal.date && /^\d{4}-\d{2}-\d{2}$/.test(meal.date)) return safeMeal;
+    if (validDateKey(meal.date)) return safeMeal;
     const timestamp = /^(?:meal-)?(\d{13})(?:-|$)/.exec(meal.id);
     const loggedAt = timestamp ? new Date(Number(timestamp[1])) : null;
     // Older opaque IDs have no recoverable date; retain those meals on the migration day.
@@ -192,14 +198,14 @@ function readWeights(): StepsMap {
   const value = readStorage<unknown>(STORAGE.weights, {});
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return Object.fromEntries(Object.entries(value).filter(([key, weight]) =>
-    /^\d{4}-\d{2}-\d{2}$/.test(key) && boundedNumber(weight, 20, 500)));
+    validDateKey(key) && boundedNumber(weight, 20, 500)));
 }
 
 function readCompletedWorkouts(): CompletedWorkout[] {
   const value = readStorage<unknown>(STORAGE.completedWorkouts, []);
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is CompletedWorkout => Boolean(item) && typeof item.id === 'string' &&
-    typeof item.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.date) &&
+    validDateKey(item.date) &&
     Number.isFinite(item.completedAt) && Array.isArray(item.setIds) && item.setIds.length > 0 &&
     item.setIds.every((id: unknown) => typeof id === 'string'));
 }
@@ -995,6 +1001,8 @@ function PlanPage({ profile, onApplyPlan }: { profile: Profile; onApplyPlan: (pl
   const carbs = Math.max(0, Math.round((calories - (protein * 4) - (fat * 9)) / 4));
   const goalLabel = form.goal === 'cut' ? 'Cut' : form.goal === 'bulk' ? 'Bulk' : 'Maintain';
   const plan: PlanResult = { calories, protein, carbs, fat, bmi, bmiLabel, goalLabel, weight, height };
+  const validTargets = boundedNumber(calories, 1000, bounds.calories, true) &&
+    [protein, carbs, fat].every((value) => boundedNumber(value, 1, bounds.macros, true));
 
   return (
     <>
@@ -1071,7 +1079,8 @@ function PlanPage({ profile, onApplyPlan }: { profile: Profile; onApplyPlan: (pl
             <div><span className="macro-swatch bar-fat" /> <span>Fat</span><strong data-testid="text-plan-fat">{fat}g</strong></div>
           </div>
           {!validInputs && <p className="error-text plan-validation" role="alert">Enter a weight of 20–500 kg, height of 100–230 cm, and age of 14–90 to apply this plan.</p>}
-          <button className="button-primary apply-plan-button" type="button" disabled={!validInputs} onClick={() => onApplyPlan(plan)} data-testid="button-apply-plan"><Check size={15} /> Apply these targets</button>
+          {validInputs && !validTargets && <p className="error-text plan-validation" role="alert">This plan exceeds the supported target range. Adjust your inputs to keep calories within 1,000–10,000 and macros within 1–1,000 g.</p>}
+          <button className="button-primary apply-plan-button" type="button" disabled={!validInputs || !validTargets} onClick={() => onApplyPlan(plan)} data-testid="button-apply-plan"><Check size={15} /> Apply these targets</button>
         </section>
       </div>
       <section className="panel bmi-panel" style={{ marginTop: 22 }}>
@@ -1175,7 +1184,7 @@ function ProfileModal({
         <div className="modal-header">
           <div>
             <h2 id="profile-title">Your profile</h2>
-            <p id="profile-description">Make the targets fit your actual life.</p>
+            <p id="profile-description">Make the targets fit your actual life. Your profile is saved in this browser and visible to anyone with access to its storage.</p>
           </div>
           <button className="button-icon button-quiet" onClick={onClose} aria-label="Close profile settings" data-testid="button-close-profile"><X size={17} /></button>
         </div>
