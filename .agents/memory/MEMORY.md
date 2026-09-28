@@ -9,3 +9,4 @@
 - [React type-version drift](react-type-version-drift.md) — minor-version type splits can break ref compatibility across library boundaries without a runtime bug.
 - [Scoped package installs](scoped-package-installs.md) — the generic installer cannot target a pnpm workspace package; use a filtered package-manager command.
 - [Browser-local privacy](browser-local-privacy.md) — FitPulse keeps browser-local profile and pairing data visible rather than using reversible obfuscation.
+- [Expo dependency audit compatibility](expo-audit-compatibility.md) — audit overrides may select ESM-only packages incompatible with Expo Router’s older CommonJS dependency chain.
