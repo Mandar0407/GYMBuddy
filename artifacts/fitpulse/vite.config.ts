@@ -64,6 +64,9 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, 'dist/public'),
     emptyOutDir: true,
   },
+  esbuild: {
+    pure: process.env.NODE_ENV === 'production' ? ['console.log'] : [],
+  },
   server: {
     port,
     strictPort: true,

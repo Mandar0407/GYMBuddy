@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import './meal-templates.css';
+import { plainText } from './inputSafety';
 
 type Template = { id: string; name: string; calories: number; protein: number; carbs: number; fat: number };
 const KEY = 'fitpulse-meal-templates';
@@ -8,15 +9,15 @@ const KEY = 'fitpulse-meal-templates';
 function validTemplate(value: unknown): value is Template {
   if (!value || typeof value !== 'object') return false;
   const item = value as Partial<Template>;
-  return typeof item.id === 'string' && typeof item.name === 'string' && item.name.trim().length > 0 &&
-    typeof item.calories === 'number' && Number.isFinite(item.calories) && item.calories > 0 &&
-    (['protein', 'carbs', 'fat'] as const).every((key) => typeof item[key] === 'number' && Number.isFinite(item[key]) && item[key]! >= 0);
+  return typeof item.id === 'string' && typeof item.name === 'string' && plainText(item.name, 60).length > 0 &&
+    typeof item.calories === 'number' && Number.isFinite(item.calories) && item.calories > 0 && item.calories <= 10000 &&
+    (['protein', 'carbs', 'fat'] as const).every((key) => typeof item[key] === 'number' && Number.isFinite(item[key]) && item[key]! >= 0 && item[key]! <= 1000);
 }
 
 function readTemplates(): Template[] {
   try {
     const saved: unknown = JSON.parse(window.localStorage.getItem(KEY) ?? '[]');
-    return Array.isArray(saved) ? saved.filter(validTemplate) : [];
+    return Array.isArray(saved) ? saved.filter(validTemplate).map((item) => ({ ...item, name: plainText(item.name, 60) })) : [];
   } catch { return []; }
 }
 
@@ -33,14 +34,15 @@ export default function MealTemplates({ onLog }: { onLog: (template: Template) =
   const save = (event: FormEvent) => {
     event.preventDefault();
     const values = [calories, protein, carbs, fat].map(Number);
-    if (!name.trim() || name.trim().length > 60 || [calories, protein, carbs, fat].some((value) => value.trim() === '') ||
+    const safeName = plainText(name, 60);
+    if (!safeName || [calories, protein, carbs, fat].some((value) => value.trim() === '') ||
       !Number.isFinite(values[0]) || values[0] <= 0 || values[0] > 10000 ||
       values.slice(1).some((value) => !Number.isFinite(value) || value < 0 || value > 1000)) {
       setError('Add a name (up to 60 characters), 1–10,000 kcal, and macros between 0–1,000 g.');
       return;
     }
     const next = [...templates, {
-      id: crypto.randomUUID(), name: name.trim(), calories: values[0],
+      id: crypto.randomUUID(), name: safeName, calories: values[0],
       protein: values[1], carbs: values[2], fat: values[3],
     }];
     try {

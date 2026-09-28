@@ -627,6 +627,19 @@ test('custom nutrition goals update both views and persist after refresh', { tim
     await click(cdp, '[data-testid="button-end-workout"]');
     await click(cdp, '[data-testid="button-confirm-end-workout"]');
     assert.match(await evaluate(cdp, `document.querySelector('[data-testid="section-workout-session-history"]').textContent`), /Outdoor Walk/);
+    await navigateTo(cdp, 'dashboard');
+    await click(cdp, '[data-testid="button-open-quick-meal"]');
+    await setInput(cdp, '[data-testid="input-quick-meal-name"]', '<img src=x onerror=alert(1)>Oats<script>alert(1)</script>');
+    await setInput(cdp, '[data-testid="input-quick-meal-calories"]', '320');
+    await click(cdp, '[data-testid="button-submit-quick-meal"]');
+    await navigateTo(cdp, 'macros');
+    assert.match(await evaluate(cdp, `document.querySelector('.log-list')?.textContent`), /Oats/);
+    assert.equal(await evaluate(cdp, `localStorage.getItem('fitpulse-macros').includes('<script>')`), false, 'malicious markup is not persisted');
+    await setInput(cdp, '[data-testid="input-target-calories"]', '999999999');
+    await click(cdp, '[data-testid="button-save-daily-targets"]');
+    assert.match(await evaluate(cdp, `document.querySelector('[data-testid="status-target-error"]')?.textContent`), /1,000–10,000/, 'extreme targets are rejected');
+    const intactProfile = await evaluate(cdp, `JSON.parse(localStorage.getItem('fitpulse-profile')).calorieTarget`);
+    assert.notEqual(intactProfile, 999999999, 'invalid target does not replace saved profile');
   } catch (error) {
     error.message += `\nVite output:\n${serverOutput}\nChromium output:\n${browserOutput}`;
     throw error;

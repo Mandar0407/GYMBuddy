@@ -1,3 +1,4 @@
+import { plainText } from './inputSafety';
 import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BookmarkPlus, Check, Clock3, Dumbbell, Minus, Pause, Play, Plus, RotateCcw, SkipForward, Trash2, Volume2, VolumeX, X } from 'lucide-react';
@@ -44,8 +45,8 @@ function readPresets(): SavedPreset[] {
     return data.filter((item): item is SavedPreset =>
       validSettings(item) && typeof (item as Partial<SavedPreset>).id === 'string'
       && typeof (item as Partial<SavedPreset>).name === 'string'
-      && (item as SavedPreset).name.trim().length > 0,
-    ).slice(0, 30);
+      && plainText((item as SavedPreset).name, 32).length > 0,
+    ).slice(0, 30).map((item) => ({ ...item, name: plainText(item.name, 32) }));
   } catch {
     return [];
   }
@@ -192,7 +193,7 @@ export default function StrengthIntervalTimer() {
     setSettings({ ...next }); setSelected(id); setError('');
   };
   const savePreset = () => {
-    const name = presetName.trim();
+    const name = plainText(presetName, 32);
     if (!name) { setError('Give your routine a name first.'); return; }
     if (name.length > 32) { setError('Keep the name to 32 characters or fewer.'); return; }
     if (presets.some(item => item.name.toLowerCase() === name.toLowerCase())) { setError('A routine with that name already exists.'); return; }

@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import { authFailureLimit, mutationLimit } from "../security-limits";
 import { db, movementAccounts, movementNative, movementManual } from "@workspace/db";
 import {
   GetMovementResponse, PutMovementNativeBody, PutMovementNativeResponse,
@@ -12,7 +13,11 @@ import {
 const router: IRouter = Router();
 const hash = (key: string) => createHash("sha256").update(key).digest("hex");
 const empty = () => Array(24).fill(0) as number[];
-const validDay = (date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(`${date}T12:00:00Z`));
+const validDay = (date: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const timestamp = Date.parse(`${date}T12:00:00Z`);
+  return Number.isFinite(timestamp) && new Date(timestamp).toISOString().slice(0, 10) === date;
+};
 
 async function load(keyHash: string) {
   const [account] = await db.select().from(movementAccounts).where(eq(movementAccounts.keyHash, keyHash));
@@ -40,16 +45,16 @@ async function authorized(req: Request, res: Response, next: NextFunction): Prom
   next();
 }
 
-router.post("/movement/accounts", async (_req, res): Promise<void> => {
+router.post("/movement/accounts", mutationLimit, async (_req, res): Promise<void> => {
   const key = randomBytes(32).toString("hex");
   await db.insert(movementAccounts).values({ keyHash: hash(key) });
   res.status(201).json(CreateMovementAccountResponse.parse({ key }));
 });
-router.use("/movement", authorized);
+router.use("/movement", authFailureLimit, authorized);
 router.get("/movement", async (_req, res): Promise<void> => {
   res.json(GetMovementResponse.parse(await load(res.locals.keyHash)));
 });
-router.put("/movement/native", async (req, res): Promise<void> => {
+router.put("/movement/native", mutationLimit, async (req, res): Promise<void> => {
   const parsed = PutMovementNativeBody.safeParse(req.body);
   if (!parsed.success || !validDay(parsed.data?.date ?? "") || !parsed.data?.hours.every(Number.isSafeInteger)) {
     res.status(400).json({ error: "Invalid hourly steps." }); return;
@@ -59,7 +64,7 @@ router.put("/movement/native", async (req, res): Promise<void> => {
     .onConflictDoUpdate({ target: [movementNative.keyHash, movementNative.date], set: { hours } });
   res.json(PutMovementNativeResponse.parse(await load(res.locals.keyHash)));
 });
-router.post("/movement/manual", async (req, res): Promise<void> => {
+router.post("/movement/manual", mutationLimit, async (req, res): Promise<void> => {
   const parsed = AddMovementManualBody.safeParse(req.body);
   if (!parsed.success || !validDay(parsed.data?.date ?? "") || !Number.isSafeInteger(parsed.data?.amount)) {
     res.status(400).json({ error: "Invalid manual steps." }); return;
@@ -67,13 +72,13 @@ router.post("/movement/manual", async (req, res): Promise<void> => {
   await db.insert(movementManual).values({ keyHash: res.locals.keyHash, ...parsed.data }).onConflictDoNothing();
   res.json(AddMovementManualResponse.parse(await load(res.locals.keyHash)));
 });
-router.delete("/movement/manual/:date", async (req, res): Promise<void> => {
+router.delete("/movement/manual/:date", mutationLimit, async (req, res): Promise<void> => {
   const parsed = ResetMovementManualParams.safeParse(req.params);
   if (!parsed.success || !validDay(parsed.data.date)) { res.status(400).json({ error: "Invalid date." }); return; }
   await db.delete(movementManual).where(and(eq(movementManual.keyHash, res.locals.keyHash), eq(movementManual.date, parsed.data.date)));
   res.json(ResetMovementManualResponse.parse(await load(res.locals.keyHash)));
 });
-router.put("/movement/settings", async (req, res): Promise<void> => {
+router.put("/movement/settings", mutationLimit, async (req, res): Promise<void> => {
   const parsed = PutMovementSettingsBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid settings." }); return; }
   await db.update(movementAccounts).set(parsed.data).where(eq(movementAccounts.keyHash, res.locals.keyHash));

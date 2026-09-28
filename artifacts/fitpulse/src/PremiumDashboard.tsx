@@ -1,4 +1,5 @@
 import { type CSSProperties, type FormEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from 'react';
+import { boundedNumber, bounds, plainText } from './inputSafety';
 import {
   Activity,
   Apple,
@@ -131,21 +132,22 @@ export default function PremiumDashboard({
       carbs: Number(mealForm.carbs),
       fat: Number(mealForm.fat),
     };
-    if (!mealForm.meal.trim()) {
+    const meal = plainText(mealForm.meal, 120);
+    if (!meal) {
       setMealError('Enter a meal name to continue.');
       return;
     }
-    if (!Number.isFinite(values.calories) || values.calories <= 0) {
-      setMealError('Calories must be a positive number.');
+    if (!boundedNumber(values.calories, 0.01, bounds.calories)) {
+      setMealError('Calories must be between 0 and 10,000.');
       return;
     }
-    if ([values.protein, values.carbs, values.fat].some((value) => !Number.isFinite(value) || value < 0)) {
-      setMealError('Protein, carbs, and fat must be nonnegative numbers.');
+    if ([values.protein, values.carbs, values.fat].some((value) => !boundedNumber(value, 0, bounds.macros))) {
+      setMealError('Protein, carbs, and fat must be between 0 and 1,000 g.');
       return;
     }
     const time = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date());
     const id = `meal-${Date.now()}-${crypto.randomUUID()}`;
-    onAddMeal({ id, meal: mealForm.meal.trim(), ...values, time });
+    onAddMeal({ id, meal, ...values, time });
     setMealForm({ meal: '', calories: '', protein: '', carbs: '', fat: '' });
     setMealError('');
     setMealDialogOpen(false);

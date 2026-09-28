@@ -38,6 +38,7 @@ import { useMotionSteps } from './useMotionSteps';
 import { usePairedMovement } from './usePairedMovement';
 import { useWorkoutSessions, workoutMetrics, type WorkoutKind } from './useWorkoutSessions';
 import { LiveWorkoutOverlay, WorkoutCountdown, WorkoutSelectionCards } from './LiveWorkoutUI';
+import { boundedNumber, bounds, plainText } from './inputSafety';
 
 type View = 'dashboard' | 'macros' | 'workout' | 'steps' | 'insights' | 'plan';
 type Profile = { name: string; goal: string; weight: number; height: number; calorieTarget: number; proteinTarget: number; carbsTarget: number; fatTarget: number; stepTarget: number };
@@ -111,6 +112,44 @@ function readStorage<T>(key: string, fallback: T): T {
   }
 }
 
+function readProfile(): Profile {
+  const saved = readStorage<unknown>(STORAGE.profile, {});
+  if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return defaultProfile;
+  const value = saved as Record<string, unknown>;
+  const getNumber = (key: keyof Profile, min: number, max: number, integer = false) =>
+    boundedNumber(value[key], min, max, integer) ? value[key] as number : defaultProfile[key] as number;
+  return {
+    name: plainText(value.name, 80) || defaultProfile.name,
+    goal: plainText(value.goal, 120) || defaultProfile.goal,
+    weight: getNumber('weight', 20, 500),
+    height: getNumber('height', 100, 230),
+    calorieTarget: getNumber('calorieTarget', 1000, bounds.calories, true),
+    proteinTarget: getNumber('proteinTarget', 1, bounds.macros, true),
+    carbsTarget: getNumber('carbsTarget', 1, bounds.macros, true),
+    fatTarget: getNumber('fatTarget', 1, bounds.macros, true),
+    stepTarget: getNumber('stepTarget', 1000, 100000, true),
+  };
+}
+
+function readDailyCounts(key: string, max: number): StepsMap {
+  const value = readStorage<unknown>(key, {});
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter(([date, count]) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(date) && boundedNumber(count, 0, max, true))) as StepsMap;
+}
+
+function readWorkouts(): WorkoutSet[] {
+  const value = readStorage<unknown>(STORAGE.workouts, []);
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is WorkoutSet => Boolean(item) &&
+    typeof item.id === 'string' && item.id.length <= 100 &&
+    typeof item.exercise === 'string' && plainText(item.exercise, 120).length > 0 &&
+    boundedNumber(item.weight, 0.01, 500) && boundedNumber(item.reps, 1, 30, true) &&
+    typeof item.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.date) &&
+    (item.setType === undefined || ['warmup', 'working', 'drop', 'failure'].includes(item.setType)))
+    .map((item) => ({ ...item, exercise: plainText(item.exercise, 120), estimatedOneRm: calculatedOneRm(item) }));
+}
+
 function readStrideOverride(): number | null {
   const saved = readStorage<unknown>(STORAGE.strideOverride, undefined);
   if (saved === null) return null;
@@ -126,19 +165,26 @@ function readHourlySteps(): HourlyStepsMap {
   return Object.fromEntries(Object.entries(stored).filter(([day, hours]) =>
     /^\d{4}-\d{2}-\d{2}$/.test(day) &&
     Array.isArray(hours) && hours.length === 24 &&
-    hours.every((count) => Number.isSafeInteger(count) && count >= 0),
+    hours.every((count) => boundedNumber(count, 0, 100000, true)),
   )) as HourlyStepsMap;
 }
 
 function readMeals(): MacroLog[] {
-  const stored = readStorage<MacroLog[]>(STORAGE.macros, []);
+  const stored = readStorage<unknown>(STORAGE.macros, []);
   if (!Array.isArray(stored)) return [];
-  return stored.map((meal) => {
-    if (meal.date && /^\d{4}-\d{2}-\d{2}$/.test(meal.date)) return meal;
+  return stored.filter((meal): meal is MacroLog => Boolean(meal) &&
+    typeof meal.id === 'string' && meal.id.length <= 100 &&
+    typeof meal.meal === 'string' && plainText(meal.meal, 120).length > 0 &&
+    boundedNumber(meal.calories, 0.01, bounds.calories) &&
+    ['protein', 'carbs', 'fat'].every((field) => boundedNumber(meal[field], 0, bounds.macros)) &&
+    typeof meal.time === 'string')
+    .map((meal) => {
+    const safeMeal = { ...meal, meal: plainText(meal.meal, 120), time: plainText(meal.time, 40) };
+    if (meal.date && /^\d{4}-\d{2}-\d{2}$/.test(meal.date)) return safeMeal;
     const timestamp = /^(?:meal-)?(\d{13})(?:-|$)/.exec(meal.id);
     const loggedAt = timestamp ? new Date(Number(timestamp[1])) : null;
     // Older opaque IDs have no recoverable date; retain those meals on the migration day.
-    return { ...meal, date: loggedAt && !Number.isNaN(loggedAt.getTime()) ? dateKey(loggedAt) : todayKey() };
+    return { ...safeMeal, date: loggedAt && !Number.isNaN(loggedAt.getTime()) ? dateKey(loggedAt) : todayKey() };
   });
 }
 
@@ -146,7 +192,7 @@ function readWeights(): StepsMap {
   const value = readStorage<unknown>(STORAGE.weights, {});
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return Object.fromEntries(Object.entries(value).filter(([key, weight]) =>
-    /^\d{4}-\d{2}-\d{2}$/.test(key) && typeof weight === 'number' && Number.isFinite(weight) && weight >= 20 && weight <= 500));
+    /^\d{4}-\d{2}-\d{2}$/.test(key) && boundedNumber(weight, 20, 500)));
 }
 
 function readCompletedWorkouts(): CompletedWorkout[] {
@@ -185,13 +231,13 @@ function App() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileTriggerRef = useRef<HTMLButtonElement>(null);
-  const [profile, setProfile] = useState<Profile>(() => ({ ...defaultProfile, ...readStorage(STORAGE.profile, defaultProfile) }));
+  const [profile, setProfile] = useState<Profile>(readProfile);
   const [macros, setMacros] = useState<MacroLog[]>(readMeals);
-  const [workouts, setWorkouts] = useState<WorkoutSet[]>(() => readStorage(STORAGE.workouts, []));
+  const [workouts, setWorkouts] = useState<WorkoutSet[]>(readWorkouts);
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>(readCompletedWorkouts);
-  const [steps, setSteps] = useState<StepsMap>(() => readStorage(STORAGE.steps, {}));
+  const [steps, setSteps] = useState<StepsMap>(() => readDailyCounts(STORAGE.steps, bounds.dailySteps));
   const [stepHours, setStepHours] = useState<HourlyStepsMap>(readHourlySteps);
-  const [waterHistory, setWaterHistory] = useState<StepsMap>(() => readStorage(STORAGE.water, {}));
+  const [waterHistory, setWaterHistory] = useState<StepsMap>(() => readDailyCounts(STORAGE.water, 100000));
   const [weightHistory, setWeightHistory] = useState<StepsMap>(readWeights);
   const [waterGoal, setWaterGoal] = useState(() => {
     const saved = readStorage<number>(STORAGE.waterGoal, 2000);
@@ -334,10 +380,16 @@ function App() {
     setToast('Profile saved. Your targets are ready.');
   };
   const addMeal = (log: MacroLog) => {
+    const meal = plainText(log.meal, 120);
+    if (!meal || !boundedNumber(log.calories, 0.01, bounds.calories) ||
+      ![log.protein, log.carbs, log.fat].every((amount) => boundedNumber(amount, 0, bounds.macros))) {
+      setToast('Meal was not saved. Check the name and nutrition values.');
+      return;
+    }
     const loggedDate = todayKey();
-    setMacros((existing) => [{ ...log, date: loggedDate }, ...existing]);
+    setMacros((existing) => [{ ...log, meal, date: loggedDate }, ...existing]);
     setCurrentDate(loggedDate);
-    setToast(`${log.meal} added to today.`);
+    setToast(`${meal} added to today.`);
   };
   const openProfile = (event: ReactMouseEvent<HTMLButtonElement>) => {
     profileTriggerRef.current = event.currentTarget;
@@ -679,8 +731,9 @@ function MacrosPage({
       carbsTarget: numberValue(targetForm.carbs),
       fatTarget: numberValue(targetForm.fat),
     };
-    if (targets.calorieTarget < 1000 || targets.proteinTarget <= 0 || targets.carbsTarget <= 0 || targets.fatTarget <= 0) {
-      setTargetError('Enter at least 1,000 calories and positive macro targets.');
+    if (!boundedNumber(targets.calorieTarget, 1000, bounds.calories, true) ||
+      ![targets.proteinTarget, targets.carbsTarget, targets.fatTarget].every((value) => boundedNumber(value, 1, bounds.macros, true))) {
+      setTargetError('Use 1,000–10,000 calories and 1–1,000 g for each macro.');
       return;
     }
     onSaveTargets(targets);
@@ -689,8 +742,10 @@ function MacrosPage({
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const values = { calories: numberValue(form.calories), protein: numberValue(form.protein), carbs: numberValue(form.carbs), fat: numberValue(form.fat) };
-    if (values.calories <= 0) { setError('Add the calories for this meal to continue.'); return; }
-    if ([values.protein, values.carbs, values.fat].some((value) => value < 0)) { setError('Macros cannot be negative.'); return; }
+    if (!boundedNumber(values.calories, 0.01, bounds.calories) ||
+      [values.protein, values.carbs, values.fat].some((value) => !boundedNumber(value, 0, bounds.macros))) {
+      setError('Use 0–10,000 calories and 0–1,000 g for each macro.'); return;
+    }
     onAdd({ id: `${Date.now()}`, meal: form.meal, ...values, time: new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date()) });
     setForm({ meal: 'Breakfast', calories: '', protein: '', carbs: '', fat: '' });
     setError('');
@@ -786,9 +841,11 @@ function WorkoutPage({ workouts, completedWorkouts, onAdd, onDelete, onFinishWor
     const numericWeight = numberValue(weight);
     const numericReps = numberValue(reps);
     if (!exercise.trim()) { setError('Name the exercise you worked on.'); return; }
-    if (numericWeight <= 0 || !Number.isSafeInteger(numericReps) || numericReps < 1 || numericReps > 30) { setError('Use a weight above 0 and between 1–30 whole reps.'); return; }
+    const safeExercise = plainText(exercise, 120);
+    if (!safeExercise) { setError('Name the exercise you worked on.'); return; }
+    if (!boundedNumber(numericWeight, 0.01, 500) || !boundedNumber(numericReps, 1, 30, true)) { setError('Use 0–500 kg and 1–30 whole reps.'); return; }
     const estimatedOneRm = numericWeight * (1 + numericReps / 30);
-    onAdd({ id: `${Date.now()}-${crypto.randomUUID()}`, exercise: exercise.trim(), weight: numericWeight, reps: numericReps, estimatedOneRm, date: currentDate, setType });
+    onAdd({ id: `${Date.now()}-${crypto.randomUUID()}`, exercise: safeExercise, weight: numericWeight, reps: numericReps, estimatedOneRm, date: currentDate, setType });
     setWeight(''); setReps(''); setError('');
   };
   return (
@@ -1093,11 +1150,16 @@ function ProfileModal({
     const height = numberValue(form.height);
     const calorieTarget = numberValue(form.calorieTarget);
     const stepTarget = numberValue(form.stepTarget);
-    if (!form.name.trim()) { setError('Add your name so the ritual feels like yours.'); return; }
-    if (weight <= 0 || height < 100 || height > 230 || calorieTarget < 1000 || stepTarget < 1000) { setError('Check your profile numbers — height should be 100–230 cm and targets should be realistic.'); return; }
+    const name = plainText(form.name, 80);
+    if (!name) { setError('Add your name so the ritual feels like yours.'); return; }
+    if (!boundedNumber(weight, 20, 500) || !boundedNumber(height, 100, 230) ||
+      !boundedNumber(calorieTarget, 1000, bounds.calories, true) ||
+      !boundedNumber(stepTarget, 1000, 100000, true)) {
+      setError('Use 20–500 kg, 100–230 cm, 1,000–10,000 calories and 1,000–100,000 steps.'); return;
+    }
     onSave({
-      name: form.name.trim(),
-      goal: form.goal.trim() || 'Build consistency',
+      name,
+      goal: plainText(form.goal, 120) || 'Build consistency',
       weight,
       height,
       calorieTarget,
