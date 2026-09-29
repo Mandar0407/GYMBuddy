@@ -34,22 +34,22 @@
 }
 
 :root {
-  --background: 45 38% 94%;
-  --foreground: 145 10% 15%;
-  --border: 45 17% 84%;
-  --input: 45 17% 84%;
-  --ring: 150 27% 34%;
-  --card: 45 60% 99%;
-  --card-foreground: 145 10% 15%;
-  --card-border: 45 17% 84%;
-  --primary: 150 27% 33%;
-  --primary-foreground: 45 60% 99%;
-  --secondary: 137 22% 91%;
-  --secondary-foreground: 149 28% 26%;
-  --muted: 43 24% 89%;
-  --muted-foreground: 50 5% 40%;
-  --accent: 110 29% 74%;
-  --accent-foreground: 145 10% 15%;
+  --background: 39 40% 94%;
+  --foreground: 30 11% 14%;
+  --border: 36 30% 87%;
+  --input: 36 30% 87%;
+  --ring: 12 76% 55%;
+  --card: 45 100% 99%;
+  --card-foreground: 30 11% 14%;
+  --card-border: 36 30% 87%;
+  --primary: 12 76% 55%;
+  --primary-foreground: 45 100% 99%;
+  --secondary: 120 21% 93%;
+  --secondary-foreground: 164 44% 28%;
+  --muted: 37 34% 89%;
+  --muted-foreground: 36 8% 49%;
+  --accent: 68 68% 66%;
+  --accent-foreground: 30 11% 14%;
   --destructive: 4 70% 50%;
   --destructive-foreground: 40 50% 98%;
   --app-font-sans: 'DM Sans', sans-serif;
@@ -61,22 +61,22 @@
 }
 
 .dark {
-  --background: 150 12% 11%;
+  --background: 216 28% 12%;
   --foreground: 40 44% 94%;
-  --border: 150 12% 25%;
-  --input: 150 12% 27%;
-  --ring: 110 29% 74%;
-  --card: 150 11% 16%;
+  --border: 216 18% 24%;
+  --input: 216 18% 26%;
+  --ring: 18 82% 58%;
+  --card: 216 24% 16%;
   --card-foreground: 40 44% 94%;
-  --card-border: 150 12% 25%;
-  --primary: 110 29% 74%;
-  --primary-foreground: 150 12% 11%;
-  --secondary: 148 17% 23%;
-  --secondary-foreground: 120 22% 87%;
-  --muted: 150 12% 21%;
-  --muted-foreground: 140 10% 70%;
-  --accent: 110 29% 74%;
-  --accent-foreground: 150 12% 11%;
+  --card-border: 216 18% 24%;
+  --primary: 18 82% 58%;
+  --primary-foreground: 216 28% 12%;
+  --secondary: 177 27% 24%;
+  --secondary-foreground: 177 32% 88%;
+  --muted: 216 19% 21%;
+  --muted-foreground: 216 13% 70%;
+  --accent: 47 82% 56%;
+  --accent-foreground: 216 28% 12%;
   --destructive: 4 68% 58%;
   --destructive-foreground: 40 44% 94%;
 }
@@ -90,7 +90,7 @@
     padding: 0;
     width: 100%;
     min-width: 320px;
-    background-color: hsl(var(--background));
+    background-color: #f7f5ee;
     overflow-x: hidden;
   }
   button, input, select { font: inherit; }
