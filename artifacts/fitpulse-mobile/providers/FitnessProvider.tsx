@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import React, {
   createContext,
   ReactNode,
@@ -9,6 +10,13 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { AppState, Platform } from 'react-native';
+import {
+  persistFitnessJournalTombstones,
+  syncFitnessJournal,
+  type PendingDeletion,
+} from './fitnessJournalSync';
+import { updateGymBuddyWidget } from '@/widgets/updateGymBuddyWidget';
 
 export type FitnessProfile = {
   name: string;
@@ -36,11 +44,15 @@ export type Meal = {
   protein: number;
   carbs: number;
   fat: number;
+  legacyMealLabel?: string;
+  provenance?: string;
 };
 
 export type WorkoutSet = {
   id: string;
   date: string;
+  loggedAt?: number;
+  legacyLoggedAt?: string;
   exercise: string;
   weight: number;
   reps: number;
@@ -61,7 +73,7 @@ export type MovementSummary = {
   week: Array<{ date: string; steps: number | null }>;
 };
 
-type FitnessState = {
+export type FitnessState = {
   profile: FitnessProfile;
   meals: Meal[];
   sets: WorkoutSet[];
@@ -78,11 +90,16 @@ type Targets = Pick<
 type FitnessContextValue = FitnessState & {
   ready: boolean;
   error: string;
+  journalSyncStatus: 'unpaired' | 'syncing' | 'synced' | 'error';
+  journalSyncError: string;
+  setJournalPairingKey(key: string): Promise<void>;
+  setMovementSteps(steps: number | null): void;
+  syncJournal(): Promise<void>;
   addMeal(input: Omit<Meal, 'id' | 'date' | 'time'>): Promise<boolean>;
   removeMeal(id: string): Promise<boolean>;
   addSet(input: Pick<WorkoutSet, 'exercise' | 'weight' | 'reps' | 'setType'>): Promise<boolean>;
   removeSet(id: string): Promise<boolean>;
-  finishWorkout(): Promise<boolean>;
+  finishWorkout(options?: { since?: number; sessionId?: string }): Promise<boolean>;
   saveTargets(targets: Targets): Promise<boolean>;
   applyPlan(update: Partial<FitnessProfile>): Promise<boolean>;
   addWater(amount: number): Promise<boolean>;
@@ -92,6 +109,7 @@ type FitnessContextValue = FitnessState & {
 };
 
 const STORAGE_KEY = '@fitpulse/mobile/fitness-state/v1';
+const PAIR_KEY = 'fitpulsePairKey';
 const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'] as const;
 const SET_TYPES = ['warmup', 'working', 'drop', 'failure'] as const;
 const SEXES = ['female', 'male'] as const;
@@ -106,7 +124,7 @@ const DEFAULT_PROFILE: FitnessProfile = {
   proteinTarget: 110,
   carbsTarget: 250,
   fatTarget: 70,
-  waterGoalMl: 2500,
+  waterGoalMl: 2000,
   stepTarget: 10000,
   age: 28,
   sex: 'female',
@@ -171,7 +189,7 @@ function validateState(value: unknown): { state: FitnessState; hadInvalidData: b
     const goal = cleanText(saved.goal, 120);
     const waterGoalMl = saved.waterGoalMl === undefined
       ? DEFAULT_PROFILE.waterGoalMl
-      : chooseNumber('waterGoalMl', 250, 10000, true);
+      : chooseNumber('waterGoalMl', 100, 20000, true);
     if (!name || !goal ||
       !isNumber(saved.weight, 20, 500) ||
       !isNumber(saved.height, 100, 230) ||
@@ -227,6 +245,8 @@ function validateState(value: unknown): { state: FitnessState; hadInvalidData: b
           protein: item.protein,
           carbs: item.carbs,
           fat: item.fat,
+          ...(typeof item.legacyMealLabel === 'string' ? { legacyMealLabel: cleanText(item.legacyMealLabel, 120) } : {}),
+          ...(typeof item.provenance === 'string' ? { provenance: cleanText(item.provenance, 80) } : {}),
         });
       } else {
         hadInvalidData = true;
@@ -244,14 +264,17 @@ function validateState(value: unknown): { state: FitnessState; hadInvalidData: b
         isDateKey(item.date) && !!cleanText(item.exercise, 120) &&
         isNumber(item.weight, 0.01, 500) &&
         isNumber(item.reps, 1, 30, true) &&
-        SET_TYPES.includes(item.setType as (typeof SET_TYPES)[number])) {
+        (item.setType === undefined || SET_TYPES.includes(item.setType as (typeof SET_TYPES)[number])) &&
+        (item.legacyLoggedAt === undefined || (typeof item.legacyLoggedAt === 'string' && item.legacyLoggedAt.length <= 40))) {
         sets.push({
           id: item.id,
           date: item.date,
+          ...(typeof item.loggedAt === 'number' && Number.isFinite(item.loggedAt) ? { loggedAt: item.loggedAt } : {}),
+          ...(typeof item.legacyLoggedAt === 'string' ? { legacyLoggedAt: item.legacyLoggedAt } : {}),
           exercise: cleanText(item.exercise, 120),
           weight: item.weight,
           reps: item.reps,
-          setType: item.setType as WorkoutSet['setType'],
+          setType: SET_TYPES.includes(item.setType as (typeof SET_TYPES)[number]) ? item.setType as WorkoutSet['setType'] : 'working',
           estimatedOneRm: item.weight * (1 + item.reps / 30),
         });
       } else {
@@ -331,6 +354,77 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
   const stateRef = useRef<FitnessState>(EMPTY_STATE);
   const hydratedRef = useRef(false);
   const persistQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const pairKeyRef = useRef('');
+  const movementStepsRef = useRef<number | null>(null);
+  const [journalSyncStatus, setJournalSyncStatus] = useState<FitnessContextValue['journalSyncStatus']>('unpaired');
+  const [journalSyncError, setJournalSyncError] = useState('');
+
+  const runJournalSync = useCallback((pairKey: string, deletedRecords: PendingDeletion[] = []) => {
+    if (!pairKey || !hydratedRef.current) return Promise.resolve();
+    const operation = persistQueueRef.current.then(async () => {
+      if (pairKeyRef.current !== pairKey || !hydratedRef.current) return;
+      setJournalSyncStatus('syncing');
+      setJournalSyncError('');
+      try {
+        const sourceState = stateRef.current;
+        const result = await syncFitnessJournal(sourceState, pairKey, deletedRecords, async (nextState) => {
+          if (stateRef.current !== sourceState) {
+            throw new Error('Fitness data changed during journal reconciliation; nothing was acknowledged.');
+          }
+          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, ...nextState }));
+          stateRef.current = nextState;
+          setState(nextState);
+        });
+        if (pairKeyRef.current !== pairKey || stateRef.current !== result.state) return;
+        setJournalSyncStatus('synced');
+        setJournalSyncError(result.conflicts ? result.message : '');
+      } catch (syncError) {
+        setJournalSyncStatus('error');
+        setJournalSyncError(`Journal sync could not complete. Your local records were kept. ${errorDetails(syncError)}`);
+      }
+    });
+    persistQueueRef.current = operation.then(() => undefined, () => undefined);
+    return operation;
+  }, []);
+
+  const setJournalPairingKey = useCallback(async (key: string) => {
+    const normalized = key.trim().toLowerCase();
+    pairKeyRef.current = normalized;
+    if (!normalized) {
+      setJournalSyncStatus('unpaired');
+      setJournalSyncError('');
+      return;
+    }
+    await runJournalSync(normalized);
+  }, [runJournalSync]);
+
+  const syncJournal = useCallback(async () => {
+    if (pairKeyRef.current) await runJournalSync(pairKeyRef.current);
+  }, [runJournalSync]);
+
+  const setMovementSteps = useCallback((steps: number | null) => {
+    movementStepsRef.current = typeof steps === 'number' && Number.isFinite(steps) ? steps : null;
+    if (ready && hydratedRef.current) {
+      void updateGymBuddyWidget({
+        meals: stateRef.current.meals,
+        sets: stateRef.current.sets,
+        water: stateRef.current.water,
+        profile: stateRef.current.profile,
+        movementSteps: movementStepsRef.current,
+      });
+    }
+  }, [ready]);
+
+  useEffect(() => {
+    if (!ready || !hydratedRef.current) return;
+    void updateGymBuddyWidget({
+      meals: state.meals,
+      sets: state.sets,
+      water: state.water,
+      profile: state.profile,
+      movementSteps: movementStepsRef.current,
+    });
+  }, [ready, state]);
 
   useEffect(() => {
     let mounted = true;
@@ -353,6 +447,18 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
       }
       hydratedRef.current = true;
       setReady(true);
+      const readPair = Platform.OS === 'web'
+        ? AsyncStorage.getItem(PAIR_KEY)
+        : SecureStore.getItemAsync(PAIR_KEY);
+      void readPair.then((key) => {
+        if (key) {
+          pairKeyRef.current = key;
+          void runJournalSync(key);
+        }
+      }).catch(() => {
+        setJournalSyncStatus('error');
+        setJournalSyncError('The saved pairing key could not be read, so journal sync is paused.');
+      });
     }).catch((readError: unknown) => {
       if (!mounted) return;
       setError(`Fitness data could not be loaded. Changes will not overwrite storage until it can be read. ${errorDetails(readError)}`);
@@ -361,7 +467,14 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [runJournalSync]);
+
+  useEffect(() => {
+    const listener = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active' && pairKeyRef.current) void runJournalSync(pairKeyRef.current);
+    });
+    return () => listener.remove();
+  }, [runJournalSync]);
 
   const commit = useCallback((update: (current: FitnessState) => MutationResult): Promise<boolean> => {
     if (!hydratedRef.current) {
@@ -371,7 +484,8 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
 
     const operation = persistQueueRef.current.then(async () => {
       try {
-        const result = update(stateRef.current);
+        const current = stateRef.current;
+        const result = update(current);
         if ('error' in result) {
           setError(result.error);
           return false;
@@ -381,6 +495,27 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
         stateRef.current = result.state;
         setState(result.state);
         setError('');
+        const removed: PendingDeletion[] = [
+          ...current.meals.filter((item) => !result.state.meals.some((next) => next.id === item.id))
+            .map((item) => ({ entity: 'meal' as const, id: item.id })),
+          ...current.sets.filter((item) => !result.state.sets.some((next) => next.id === item.id))
+            .map((item) => ({ entity: 'strengthSet' as const, id: item.id })),
+          ...current.completedWorkouts.filter((item) => !result.state.completedWorkouts.some((next) => next.id === item.id))
+            .map((item) => ({ entity: 'completedWorkout' as const, id: item.id })),
+          ...Object.keys(current.water).filter((date) => !(date in result.state.water))
+            .map((id) => ({ entity: 'waterDay' as const, id })),
+          ...current.weights.filter((item) => !result.state.weights.some((next) => next.date === item.date))
+            .map((item) => ({ entity: 'weightDay' as const, id: item.date })),
+        ];
+        if (pairKeyRef.current && removed.length) {
+          try {
+            await persistFitnessJournalTombstones(pairKeyRef.current, removed);
+          } catch (tombstoneError) {
+            setJournalSyncStatus('error');
+            setJournalSyncError(`A deletion was saved locally, but its sync marker could not be saved. ${errorDetails(tombstoneError)}`);
+          }
+        }
+        if (pairKeyRef.current) void runJournalSync(pairKeyRef.current, removed);
         return true;
       } catch (writeError) {
         setError(`Fitness data could not be saved. ${errorDetails(writeError)}`);
@@ -390,7 +525,7 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
 
     persistQueueRef.current = operation.then(() => undefined, () => undefined);
     return operation;
-  }, []);
+  }, [runJournalSync]);
 
   const reject = useCallback((message: string): Promise<boolean> => {
     setError(message);
@@ -440,6 +575,7 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
     const set: WorkoutSet = {
       id: makeId(),
       date: todayKey(),
+      loggedAt: Date.now(),
       exercise,
       weight: input.weight,
       reps: input.reps,
@@ -464,13 +600,17 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
     }));
   }, [commit, reject]);
 
-  const finishWorkout = useCallback((): Promise<boolean> => {
+  const finishWorkout = useCallback((options?: { since?: number; sessionId?: string }): Promise<boolean> => {
     const today = todayKey();
-    const id = makeId();
+    const id = options?.sessionId ?? makeId();
     const completedAt = Date.now();
     return commit((current) => {
       const completedIds = new Set(current.completedWorkouts.flatMap((workout) => workout.setIds));
-      const pending = current.sets.filter((set) => set.date === today && !completedIds.has(set.id));
+      const pending = current.sets.filter((set) =>
+        !completedIds.has(set.id) &&
+        (options?.since === undefined
+          ? set.date === today
+          : set.loggedAt !== undefined && set.loggedAt >= options.since && set.loggedAt <= completedAt));
       if (pending.length === 0) return { error: 'There are no pending sets from today to finish.' };
       return {
         state: {
@@ -507,7 +647,7 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
         !isNumber(candidate.weight, 20, 500) ||
         !isNumber(candidate.height, 100, 230) ||
         !validTargets(candidate) ||
-         !isNumber(candidate.waterGoalMl, 250, 10000, true) ||
+         !isNumber(candidate.waterGoalMl, 100, 20000, true) ||
         !isNumber(candidate.stepTarget, 1000, 100000, true) ||
         !isNumber(candidate.age, 14, 90, true) ||
         !SEXES.includes(candidate.sex) ||
@@ -544,8 +684,8 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
   }, [commit, reject]);
 
   const setWaterGoal = useCallback((goalMl: number): Promise<boolean> => {
-    if (!isNumber(goalMl, 250, 10000, true)) {
-      return reject('Water goal must be a whole number from 250 to 10,000 ml.');
+    if (!isNumber(goalMl, 100, 20000, true)) {
+      return reject('Water goal must be a whole number from 100 to 20,000 ml.');
     }
     return commit((current) => ({
       state: { ...current, profile: { ...current.profile, waterGoalMl: goalMl } },
@@ -570,6 +710,11 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
     ...state,
     ready,
     error,
+    journalSyncStatus,
+    journalSyncError,
+    setJournalPairingKey,
+    setMovementSteps,
+    syncJournal,
     addMeal,
     removeMeal,
     addSet,
@@ -585,6 +730,11 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
     state,
     ready,
     error,
+    journalSyncStatus,
+    journalSyncError,
+    setJournalPairingKey,
+    setMovementSteps,
+    syncJournal,
     addMeal,
     removeMeal,
     addSet,

@@ -1,10 +1,10 @@
 ---
-name: Mobile journal locality
-description: Why GYM Buddy’s phone journal is intentionally separate from the web journal
+name: Paired journal sync
+description: Why GYM Buddy uses Movement pairing for conservative journal sync
 ---
 
-Nutrition, strength, weight, water, fasting, and interval routines saved on the phone are not a copy of the website’s journal. Only Movement uses web pairing to exchange data. Do not imply a meal or workout logged on one device appears on the other.
+The existing Movement pairing key is also the identity for journal sync. Keep original browser and phone stores when pairing; merge records without silently overwriting different versions. Unpaired records and active workout drafts remain local. Conflict status should remain visible until the user can resolve it.
 
-**Why:** The website stores its journal in browser-local storage, and the user requested a matching mobile experience while preserving existing native step tracking and pairing, not a migration of browser-local records to a shared account.
+**Why:** The user asked for cross-device meals and workouts but did not want the website redesigned. It has no separate account login, and existing browser/phone records may be older or ambiguous. Reusing pairing avoids a new login but makes conservative reconciliation essential to prevent data loss.
 
-**How to apply:** When changing dashboards, labels, onboarding, or data storage, be explicit about which records are device-local. Cross-device journal sync would require its own account/data migration design; preserve both stores until the user chooses one.
+**How to apply:** Any new synced record type needs compatible phone/web validation, conflict and deletion behavior, and a way to refresh already-mounted screens. Do not sync active timers/drafts as if they were completed records or reset local records on initial pairing.

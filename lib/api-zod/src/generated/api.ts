@@ -129,6 +129,72 @@ export const PutMovementSettingsResponse = zod.object({
 })
 
 
+
+
+
+export const GetJournalResponse = zod.object({
+  "records": zod.array(zod.object({
+  "entity": zod.enum(['meal', 'strengthSet', 'completedWorkout', 'waterDay', 'waterGoal', 'weightDay', 'nutritionGoals', 'profile', 'mealTemplate', 'liveWorkoutHistory']),
+  "id": zod.string(),
+  "revision": zod.number().int().min(1),
+  "deleted": zod.boolean(),
+  "data": zod.record(zod.string(), zod.unknown()).nullable(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+export const applyJournalChangesBodyChangesItemOneBaseRevisionMin = 0;
+
+export const applyJournalChangesBodyChangesItemOneMutationIdMin = 16;
+export const applyJournalChangesBodyChangesItemOneMutationIdMax = 100;
+
+export const applyJournalChangesBodyChangesItemTwoIdMax = 100;
+
+export const applyJournalChangesBodyChangesMax = 100;
+
+
+
+export const ApplyJournalChangesBody = zod.object({
+  "changes": zod.array(zod.object({
+  "baseRevision": zod.number().int().min(applyJournalChangesBodyChangesItemOneBaseRevisionMin),
+  "mutationId": zod.string().min(applyJournalChangesBodyChangesItemOneMutationIdMin).max(applyJournalChangesBodyChangesItemOneMutationIdMax),
+  "deleted": zod.boolean(),
+  "data": zod.record(zod.string(), zod.unknown()).nullable()
+}).and(zod.object({
+  "entity": zod.enum(['meal', 'strengthSet', 'completedWorkout', 'waterDay', 'waterGoal', 'weightDay', 'nutritionGoals', 'profile', 'mealTemplate', 'liveWorkoutHistory']),
+  "id": zod.string().min(1).max(applyJournalChangesBodyChangesItemTwoIdMax)
+}))).min(1).max(applyJournalChangesBodyChangesMax)
+})
+
+
+
+
+
+export const ApplyJournalChangesResponse = zod.object({
+  "records": zod.array(zod.object({
+  "entity": zod.enum(['meal', 'strengthSet', 'completedWorkout', 'waterDay', 'waterGoal', 'weightDay', 'nutritionGoals', 'profile', 'mealTemplate', 'liveWorkoutHistory']),
+  "id": zod.string(),
+  "revision": zod.number().int().min(1),
+  "deleted": zod.boolean(),
+  "data": zod.record(zod.string(), zod.unknown()).nullable(),
+  "updatedAt": zod.coerce.date()
+})),
+  "conflicts": zod.array(zod.object({
+  "entity": zod.enum(['meal', 'strengthSet', 'completedWorkout', 'waterDay', 'waterGoal', 'weightDay', 'nutritionGoals', 'profile', 'mealTemplate', 'liveWorkoutHistory']),
+  "id": zod.string(),
+  "current": zod.union([zod.object({
+  "entity": zod.enum(['meal', 'strengthSet', 'completedWorkout', 'waterDay', 'waterGoal', 'weightDay', 'nutritionGoals', 'profile', 'mealTemplate', 'liveWorkoutHistory']),
+  "id": zod.string(),
+  "revision": zod.number().int().min(1),
+  "deleted": zod.boolean(),
+  "data": zod.record(zod.string(), zod.unknown()).nullable(),
+  "updatedAt": zod.coerce.date()
+}),zod.null()])
+}))
+})
+
+
 /**
  * Returns server health status
  * @summary Health check

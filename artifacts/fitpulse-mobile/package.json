@@ -56,7 +56,9 @@
   },
   "dependencies": {
     "@expo-google-fonts/dm-sans": "^0.4.2",
+    "@expo/ui": "~57.0.20",
     "expo-secure-store": "~57.0.4",
-    "expo-sensors": "~57.0.3"
+    "expo-sensors": "~57.0.3",
+    "expo-widgets": "~57.0.21"
   }
 }

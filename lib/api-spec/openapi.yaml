@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: movement
     description: Paired movement activity
+  - name: journal
+    description: Conflict-safe paired journal synchronization
 paths:
   /movement/accounts:
     post:
@@ -93,6 +95,37 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/MovementData" }
+  /journal:
+    get:
+      operationId: getJournal
+      tags: [journal]
+      responses:
+        "200":
+          description: All journal records and tombstones for the paired account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JournalSnapshot" }
+        "401":
+          description: A valid Movement pairing key is required
+  /journal/changes:
+    post:
+      operationId: applyJournalChanges
+      tags: [journal]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JournalChanges" }
+      responses:
+        "200":
+          description: Per-record accepted writes and conflicts; retry with the same mutation IDs
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JournalChangesResult" }
+        "400":
+          description: Invalid record mutation
+        "401":
+          description: A valid Movement pairing key is required
   /healthz:
     get:
       operationId: healthCheck
@@ -159,6 +192,75 @@ components:
         goal: { type: integer, minimum: 1000, maximum: 100000 }
         strideCm: { type: number, minimum: 30, maximum: 150 }
         weightKg: { type: number, minimum: 20, maximum: 500 }
+    JournalEntity:
+      type: string
+      enum: [meal, strengthSet, completedWorkout, waterDay, waterGoal, weightDay, nutritionGoals, profile, mealTemplate, liveWorkoutHistory]
+    JournalRecord:
+      type: object
+      required: [entity, id, revision, deleted, data, updatedAt]
+      properties:
+        entity: { $ref: "#/components/schemas/JournalEntity" }
+        id: { type: string }
+        revision: { type: integer, minimum: 1 }
+        deleted: { type: boolean }
+        data:
+          type: ["object", "null"]
+          additionalProperties: true
+        updatedAt: { type: string, format: date-time }
+    JournalSnapshot:
+      type: object
+      required: [records]
+      properties:
+        records:
+          type: array
+          items: { $ref: "#/components/schemas/JournalRecord" }
+    JournalRecordMutation:
+      type: object
+      required: [baseRevision, mutationId, deleted, data]
+      properties:
+        baseRevision: { type: integer, minimum: 0 }
+        mutationId: { type: string, minLength: 16, maxLength: 100 }
+        deleted: { type: boolean }
+        data:
+          type: ["object", "null"]
+          additionalProperties: true
+    JournalChange:
+      allOf:
+        - $ref: "#/components/schemas/JournalRecordMutation"
+        - type: object
+          required: [entity, id]
+          properties:
+            entity: { $ref: "#/components/schemas/JournalEntity" }
+            id: { type: string, minLength: 1, maxLength: 100 }
+    JournalChanges:
+      type: object
+      required: [changes]
+      properties:
+        changes:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: "#/components/schemas/JournalChange" }
+    JournalChangeConflict:
+      type: object
+      required: [entity, id, current]
+      properties:
+        entity: { $ref: "#/components/schemas/JournalEntity" }
+        id: { type: string }
+        current:
+          oneOf:
+            - $ref: "#/components/schemas/JournalRecord"
+            - type: "null"
+    JournalChangesResult:
+      type: object
+      required: [records, conflicts]
+      properties:
+        records:
+          type: array
+          items: { $ref: "#/components/schemas/JournalRecord" }
+        conflicts:
+          type: array
+          items: { $ref: "#/components/schemas/JournalChangeConflict" }
     HealthStatus:
       type: object
       properties:

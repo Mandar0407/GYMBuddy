@@ -73,6 +73,88 @@ export interface MovementSettingsInput {
   weightKg: number;
 }
 
+export type JournalEntity = typeof JournalEntity[keyof typeof JournalEntity];
+
+
+export const JournalEntity = {
+  meal: 'meal',
+  strengthSet: 'strengthSet',
+  completedWorkout: 'completedWorkout',
+  waterDay: 'waterDay',
+  waterGoal: 'waterGoal',
+  weightDay: 'weightDay',
+  nutritionGoals: 'nutritionGoals',
+  profile: 'profile',
+  mealTemplate: 'mealTemplate',
+  liveWorkoutHistory: 'liveWorkoutHistory',
+} as const;
+
+/**
+ * @nullable
+ */
+export type JournalRecordData = { [key: string]: unknown } | null;
+
+export interface JournalRecord {
+  entity: JournalEntity;
+  id: string;
+  /** @minimum 1 */
+  revision: number;
+  deleted: boolean;
+  /** @nullable */
+  data: JournalRecordData;
+  updatedAt: string;
+}
+
+export interface JournalSnapshot {
+  records: JournalRecord[];
+}
+
+/**
+ * @nullable
+ */
+export type JournalRecordMutationData = { [key: string]: unknown } | null;
+
+export interface JournalRecordMutation {
+  /** @minimum 0 */
+  baseRevision: number;
+  /**
+     * @minLength 16
+     * @maxLength 100
+     */
+  mutationId: string;
+  deleted: boolean;
+  /** @nullable */
+  data: JournalRecordMutationData;
+}
+
+export type JournalChange = JournalRecordMutation & {
+  entity: JournalEntity;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  id: string;
+};
+
+export interface JournalChanges {
+  /**
+     * @minItems 1
+     * @maxItems 100
+     */
+  changes: JournalChange[];
+}
+
+export interface JournalChangeConflict {
+  entity: JournalEntity;
+  id: string;
+  current: JournalRecord | null;
+}
+
+export interface JournalChangesResult {
+  records: JournalRecord[];
+  conflicts: JournalChangeConflict[];
+}
+
 export interface HealthStatus {
   status: string;
 }

@@ -1,9 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
+import { useFitness } from '@/providers/FitnessProvider';
+import { withJournalStorageLock } from '@/providers/journalStorageLock';
 
 type WorkoutKind = 'outdoor-walk' | 'indoor-walk' | 'strength';
 type WorkoutHistoryEntry = {
@@ -143,10 +146,21 @@ function workoutSteps(workout: ActiveWorkout) {
 const isValidObservation = (steps: number, date: string) =>
   Number.isSafeInteger(steps) && steps >= 0 && isDateKey(date);
 
-export default function LiveWorkout({ steps, stepDate: providedStepDate, onComplete }: { steps: number; stepDate?: string; onComplete?: () => void }) {
+export default function LiveWorkout({ steps, stepDate: providedStepDate, onComplete }: {
+  steps: number;
+  stepDate?: string;
+  onComplete?: (kind: WorkoutKind, startedAt: number, sessionId: string) => void;
+}) {
   const stepDate = providedStepDate ?? localDateKey();
   const colors = useColors();
+  const fit = useFitness();
   const insets = useSafeAreaInsets();
+  const [exercise, setExercise] = useState('');
+  const [load, setLoad] = useState('');
+  const [reps, setReps] = useState('');
+  const [setType, setSetType] = useState<'working' | 'warmup' | 'drop' | 'failure'>('working');
+  const [setFeedback, setSetFeedback] = useState('');
+  const [restUntil, setRestUntil] = useState(0);
   const [history, setHistory] = useState<WorkoutHistoryEntry[]>([]);
   const [active, setActive] = useState<ActiveWorkout | null>(null);
   const activeRef = useRef<ActiveWorkout | null>(null);
@@ -214,11 +228,50 @@ export default function LiveWorkout({ steps, stepDate: providedStepDate, onCompl
     return () => { mounted = false; };
   }, [setCurrent]);
 
+  // Journal sync can add sessions from the website while this screen stays mounted.
+  // Never replace an active draft or race a local save with a history refresh.
   useEffect(() => {
-    if (!active?.runningSince && !countdown) return;
+    if (fit.journalSyncStatus !== 'synced' || !ready || !storageHealthy ||
+      activeRef.current || endingRef.current) return;
+    let mounted = true;
+    void storageQueue.current.then(async () => {
+      const saved = parseHistory(await AsyncStorage.getItem(HISTORY_KEY));
+      if (!mounted || activeRef.current || endingRef.current) return;
+      historyRef.current = saved;
+      setHistory(saved);
+    }).catch(() => {
+      if (mounted) setError('Completed session history could not be refreshed; existing entries were kept.');
+    });
+    return () => { mounted = false; };
+  }, [fit.journalSyncStatus, ready, storageHealthy]);
+
+  useEffect(() => {
+    if (!active?.runningSince && !countdown && restUntil <= Date.now()) return;
     const timer = setInterval(() => setNow(Date.now()), 250);
     return () => clearInterval(timer);
-  }, [active?.runningSince, countdown]);
+  }, [active?.runningSince, countdown, restUntil]);
+
+  const logLiveSet = async () => {
+    if (!active || active.kind !== 'strength' || saving) return;
+    const weight = Number(load.trim());
+    const count = Number(reps.trim());
+    if (!exercise.trim() || !load.trim() || !reps.trim() ||
+      !Number.isFinite(weight) || weight <= 0 || weight > 500 ||
+      !Number.isInteger(count) || count < 1 || count > 30) {
+      setSetFeedback('Enter an exercise, weight above 0 up to 500 kg, and 1–30 whole reps.');
+      return;
+    }
+    const previousBest = Math.max(0, ...fit.sets.filter(item =>
+      item.exercise.trim().toLowerCase() === exercise.trim().toLowerCase())
+      .map(item => item.estimatedOneRm));
+    const saved = await fit.addSet({ exercise, weight, reps: count, setType });
+    if (!saved) { setSetFeedback('Set could not be saved. Check the message in the strength log.'); return; }
+    const personalBest = weight * (1 + count / 30) > previousBest;
+    setSetFeedback(personalBest ? 'New personal best. Set saved.' : 'Set saved to this workout.');
+    setReps('');
+    if (setType === 'working') setRestUntil(Date.now() + 90_000);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
 
   useEffect(() => {
     if (!countdown) return;
@@ -360,7 +413,7 @@ export default function LiveWorkout({ steps, stepDate: providedStepDate, onCompl
     endingRef.current = true;
     setSaving(true);
     try {
-      const transaction = storageQueue.current.then(async () => {
+      const transaction = storageQueue.current.then(() => withJournalStorageLock(async () => {
         let storedHistory: WorkoutHistoryEntry[];
         try {
           storedHistory = parseHistory(await AsyncStorage.getItem(HISTORY_KEY));
@@ -376,14 +429,16 @@ export default function LiveWorkout({ steps, stepDate: providedStepDate, onCompl
         setHistory(nextHistory);
         await AsyncStorage.removeItem(DRAFT_KEY);
         return nextHistory;
-      });
+      }));
       storageQueue.current = transaction.then(() => undefined, () => undefined);
       const nextHistory = await transaction;
       setHistory(nextHistory);
       setCurrent(null);
       setConfirmEnd(false);
       setError('');
-      onComplete?.();
+      setRestUntil(0);
+      onComplete?.(completed.kind, completed.startedAt, completed.id);
+      void fit.syncJournal();
     } catch {
       setError(storageHealthyRef.current
         ? 'Workout could not be saved. Your session is still open; check storage and try again.'
@@ -452,6 +507,11 @@ export default function LiveWorkout({ steps, stepDate: providedStepDate, onCompl
             <Text style={[styles.detail, { color: colors.mutedForeground }]}>
               {new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(entry.endedAt)} · {formatTime(entry.durationMs)}
             </Text>
+            {entry.kind === 'strength' && fit.completedWorkouts.some(workout => workout.id === entry.id) && (
+              <Text style={[styles.detail, { color: colors.mutedForeground }]}>
+                {fit.completedWorkouts.find(workout => workout.id === entry.id)?.setIds.length ?? 0} strength sets saved
+              </Text>
+            )}
           </View>
           {entry.kind !== 'strength' && <Text style={[styles.historySteps, { color: colors.secondaryForeground }]}>{compact(entry.steps)} steps</Text>}
         </View>
@@ -492,7 +552,7 @@ export default function LiveWorkout({ steps, stepDate: providedStepDate, onCompl
                   </Text>
                 </View>
               </View>
-              <ScrollView contentContainerStyle={styles.liveContent} showsVerticalScrollIndicator={false}>
+              <ScrollView contentContainerStyle={styles.liveContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                 <Text style={[styles.eyebrow, { color: colors.primary }]}>IN SESSION / NO PRESSURE, JUST PROGRESS</Text>
                 <Text style={[styles.modalTitle, { color: colors.foreground }]}>{labels[active.kind]}</Text>
                 <Text style={[styles.modalSub, { color: colors.mutedForeground }]}>
@@ -511,6 +571,44 @@ export default function LiveWorkout({ steps, stepDate: providedStepDate, onCompl
                       <Text style={[styles.stepsNumber, { color: colors.foreground }]} testID="text-live-steps">{compact(stepsGained)}</Text>
                     </View>
                     <Text style={[styles.detail, { color: colors.mutedForeground }]}>daily summary only</Text>
+                  </View>
+                )}
+                {active.kind === 'strength' && (
+                  <View style={[styles.setPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <Text style={[styles.historyTitle, { color: colors.foreground }]}>Sets in this session</Text>
+                    {fit.sets.filter(item => item.loggedAt !== undefined && item.loggedAt >= active.startedAt).length ? (
+                      fit.sets.filter(item => item.loggedAt !== undefined && item.loggedAt >= active.startedAt)
+                        .map(item => <Text key={item.id} style={[styles.detail, { color: colors.mutedForeground }]}>
+                          {item.exercise} · {item.weight.toLocaleString('en-US', { maximumFractionDigits: 1 })} kg × {item.reps} · {item.setType}
+                        </Text>)
+                    ) : <Text style={[styles.detail, { color: colors.mutedForeground }]}>Your first set is ready when you are.</Text>}
+                    <TextInput testID="live-set-exercise" accessibilityLabel="Exercise" value={exercise} onChangeText={setExercise}
+                      placeholder="Exercise" placeholderTextColor={colors.mutedForeground}
+                      style={[styles.setInput, { borderColor: colors.border, color: colors.foreground }]} />
+                    <View style={styles.setFields}>
+                      <TextInput testID="live-set-weight" accessibilityLabel="Weight in kilograms" value={load} onChangeText={setLoad}
+                        keyboardType="decimal-pad" placeholder="Weight (kg)" placeholderTextColor={colors.mutedForeground}
+                        style={[styles.setInput, styles.setField, { borderColor: colors.border, color: colors.foreground }]} />
+                      <TextInput testID="live-set-reps" accessibilityLabel="Repetitions" value={reps} onChangeText={setReps}
+                        keyboardType="number-pad" placeholder="Reps" placeholderTextColor={colors.mutedForeground}
+                        style={[styles.setInput, styles.setField, { borderColor: colors.border, color: colors.foreground }]} />
+                    </View>
+                    <View style={styles.setFields}>
+                      {(['working', 'warmup', 'drop', 'failure'] as const).map(kind => (
+                        <Pressable key={kind} onPress={() => setSetType(kind)}
+                          style={[styles.setKind, { backgroundColor: setType === kind ? colors.secondary : colors.background, borderColor: colors.border }]}>
+                          <Text style={[styles.detail, { color: colors.foreground }]}>{kind}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                    <Pressable testID="live-log-set" accessibilityRole="button" onPress={() => void logLiveSet()}
+                      style={[styles.controlButton, { backgroundColor: colors.primary }]}>
+                      <Text style={[styles.controlText, { color: colors.primaryForeground }]}>Save set</Text>
+                    </Pressable>
+                    {restUntil > now && <Pressable testID="live-rest-skip" onPress={() => setRestUntil(0)}>
+                      <Text style={[styles.detail, { color: colors.secondaryForeground }]}>Rest {Math.ceil((restUntil - now) / 1000)}s · Tap to skip</Text>
+                    </Pressable>}
+                    {!!setFeedback && <Text accessibilityRole="alert" style={[styles.detail, { color: colors.secondaryForeground }]}>{setFeedback}</Text>}
                   </View>
                 )}
               </ScrollView>
@@ -591,6 +689,11 @@ const styles = StyleSheet.create({
   timer: { fontFamily: 'DMSans_700Bold', fontSize: 56, lineHeight: 66, marginTop: 8 },
   timerHint: { fontFamily: 'DMSans_400Regular', fontSize: 12, marginTop: 4 },
   stepsPanel: { borderRadius: 18, borderWidth: 1, marginTop: 14, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
+  setPanel: { borderWidth: 1, borderRadius: 18, marginTop: 14, padding: 16, gap: 11 },
+  setInput: { borderWidth: 1, borderRadius: 10, minHeight: 42, paddingHorizontal: 12, fontSize: 14 },
+  setFields: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  setField: { flex: 1, minWidth: 98 },
+  setKind: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7 },
   stepsNumber: { fontFamily: 'DMSans_700Bold', fontSize: 24, marginTop: 2 },
   controls: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 20, paddingTop: 14, flexDirection: 'row', gap: 10 },
   controlButton: { flex: 1, borderRadius: 15, minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },

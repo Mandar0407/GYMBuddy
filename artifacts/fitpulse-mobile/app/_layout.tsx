@@ -8,13 +8,17 @@ import { DMSans_400Regular, DMSans_700Bold, useFonts } from '@expo-google-fonts/
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { setBaseUrl, setAuthTokenGetter } from '@workspace/api-client-react';
 import { FitnessProvider } from '@/providers/FitnessProvider';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 if (process.env.EXPO_PUBLIC_DOMAIN) setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
-setAuthTokenGetter(() => SecureStore.getItemAsync('fitpulsePairKey'));
+setAuthTokenGetter(() => Platform.OS === 'web'
+  ? AsyncStorage.getItem('fitpulsePairKey')
+  : SecureStore.getItemAsync('fitpulsePairKey'));
 
 const queryClient = new QueryClient();
 

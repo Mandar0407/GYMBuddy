@@ -22,6 +22,9 @@ type Props = {
   pairedKey: string;
   pairedError: string;
   pairedBusy: boolean;
+  journalMessage: string;
+  journalStatus: 'unpaired' | 'syncing' | 'synced' | 'error';
+  journalConflictCount: number;
   onPair: () => void;
   onStartTracking: () => void;
   onStopTracking: () => void;
@@ -62,6 +65,7 @@ export default function MovementPage({
   onStartWorkout, workoutActive, workoutSessions,
   steps, hourlySteps, todaySteps, currentDate, target, weightKg, heightCm, strideCm, strideOverrideCm,
   motionStatus, storageError, pairedKey, pairedError, pairedBusy, onPair, onStartTracking, onStopTracking, onChange, onSaveSettings,
+  journalMessage, journalStatus, journalConflictCount,
 }: Props) {
   const [customSteps, setCustomSteps] = useState('');
   const [customError, setCustomError] = useState('');
@@ -120,6 +124,9 @@ export default function MovementPage({
           </>
         ) : <button type="button" className="button-primary" onClick={onPair} disabled={pairedBusy} data-testid="button-pair-mobile">Create pairing key</button>}
         {pairedError && <p role="alert" className="error-text">{pairedError}</p>}
+        {pairedKey && journalStatus === 'syncing' && <p role="status" aria-live="polite">Syncing journal across paired devices…</p>}
+        {pairedKey && journalStatus === 'synced' && <p role="status" aria-live="polite">Journal is synced across paired devices.</p>}
+        {pairedKey && journalStatus === 'error' && <p role="alert" className="error-text" data-testid="status-journal-sync-error">{journalMessage}{journalConflictCount > 0 ? ` (${journalConflictCount} conflict${journalConflictCount === 1 ? '' : 's'}). Your local entries were kept.` : ''}</p>}
       </section>
 
       <section className="panel steps-hero">

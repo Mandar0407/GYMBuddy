@@ -7,6 +7,16 @@
  */
 
 export * from './healthStatus';
+export * from './journalChange';
+export * from './journalChangeConflict';
+export * from './journalChanges';
+export * from './journalChangesResult';
+export * from './journalEntity';
+export * from './journalRecord';
+export * from './journalRecordData';
+export * from './journalRecordMutation';
+export * from './journalRecordMutationData';
+export * from './journalSnapshot';
 export * from './movementAccount';
 export * from './movementData';
 export * from './movementDay';

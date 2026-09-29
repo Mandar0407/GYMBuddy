@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { AppState, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AppState, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useFitness, dateKey, type MovementSummary } from '@/providers/FitnessProvider';
@@ -15,13 +16,16 @@ import MealTemplates from '@/components/MealTemplates';
 import WaterIntakeCard from '@/components/WaterIntakeCard';
 
 type Tab = 'Today' | 'Nutrition' | 'Strength' | 'Movement' | 'Insights' | 'My plan';
+type MainTab = 'Today' | 'Log' | 'Movement' | 'Insights' | 'Plan';
 type MealType = 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack';
 type SetType = 'warmup' | 'working' | 'drop' | 'failure';
 type Palette = ReturnType<typeof useColors>;
-const tabs: Tab[] = ['Today', 'Nutrition', 'Strength', 'Movement', 'Insights', 'My plan'];
-const icons: Record<Tab, keyof typeof Feather.glyphMap> = {
-  Today: 'home', Nutrition: 'pie-chart', Strength: 'activity', Movement: 'navigation', Insights: 'bar-chart-2', 'My plan': 'clipboard',
+const tabs: MainTab[] = ['Today', 'Log', 'Movement', 'Insights', 'Plan'];
+const icons: Record<MainTab, keyof typeof Feather.glyphMap> = {
+  Today: 'home', Log: 'plus-square', Movement: 'navigation', Insights: 'bar-chart-2', Plan: 'clipboard',
 };
+const tap = () => { if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {}); };
+const success = () => { if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}); };
 const number = (n: number) => Number(n.toFixed(1)).toLocaleString('en-US', { maximumFractionDigits: 1 });
 const integer = (s: string, low: number, high: number) => /^\d+$/.test(s.trim()) && Number(s) >= low && Number(s) <= high;
 const decimal = (s: string, low: number, high: number) => s.trim() !== '' && Number.isFinite(Number(s)) && Number(s) >= low && Number(s) <= high;
@@ -45,7 +49,7 @@ function Panel({ children, colors, style }: { children: React.ReactNode; colors:
 function Action({ children, onPress, colors, secondary = false, disabled = false, testID }: {
   children: React.ReactNode; onPress: () => void; colors: Palette; secondary?: boolean; disabled?: boolean; testID?: string;
 }) {
-  return <Pressable testID={testID} disabled={disabled} onPress={onPress} style={({ pressed }) => [s.action,
+  return <Pressable accessibilityRole="button" testID={testID} disabled={disabled} onPress={() => { tap(); onPress(); }} style={({ pressed }) => [s.action,
     { backgroundColor: secondary ? colors.secondary : colors.primary, opacity: pressed || disabled ? .5 : 1 }]}>
     <Text style={[s.actionText, { color: secondary ? colors.secondaryForeground : colors.primaryForeground }]}>{children}</Text>
   </Pressable>;
@@ -62,7 +66,7 @@ function Field({ label, value, onChange, colors, placeholder, numeric = false, t
 function Select<T extends string>({ values, value, onChange, colors }: {
   values: readonly T[]; value: T; onChange: (v: T) => void; colors: Palette;
 }) {
-  return <View style={s.pills}>{values.map(v => <Pressable key={v} onPress={() => onChange(v)}
+  return <View style={s.pills}>{values.map(v => <Pressable accessibilityRole="button" accessibilityState={{ selected: v === value }} key={v} onPress={() => { tap(); onChange(v); }}
     style={[s.pill, { backgroundColor: v === value ? colors.accent : colors.background, borderColor: v === value ? colors.accent : colors.border }]}>
     <Text style={[s.pillText, { color: colors.foreground }]}>{v === 'warmup' ? 'Warm-up' : v === 'working' ? 'Working' : v === 'drop' ? 'Drop' : v === 'failure' ? 'Failure' : v[0].toUpperCase() + v.slice(1)}</Text>
   </Pressable>)}</View>;
@@ -85,6 +89,9 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
   const insets = useSafeAreaInsets();
   const fit = useFitness();
   const [tab, setTab] = useState<Tab>('Today');
+  const [mealSaved, setMealSaved] = useState('');
+  const [setSaved, setSetSaved] = useState('');
+  const [finishMessage, setFinishMessage] = useState('');
   const [menu, setMenu] = useState(false);
   const [mealOpen, setMealOpen] = useState(false);
   const [mealType, setMealType] = useState<MealType>('Breakfast');
@@ -109,6 +116,18 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
   const [record, setRecord] = useState<{ exercise: string; kind: string; value: number } | null>(null);
   const [dateNow, setDateNow] = useState(() => new Date());
   useEffect(() => {
+    let active = true;
+    const open = (url: string | null) => {
+      if (active && url && /^fitpulse:\/\/log(?:[/?#]|$)/i.test(url)) {
+        setTab('Nutrition');
+        setMenu(false);
+      }
+    };
+    void Linking.getInitialURL().then(open).catch(() => {});
+    const listener = Linking.addEventListener('url', ({ url }) => open(url));
+    return () => { active = false; listener.remove(); };
+  }, []);
+  useEffect(() => {
     const refreshDate = () => setDateNow(new Date());
     const timer = setInterval(refreshDate, 60000);
     const foreground = AppState.addEventListener('change', state => { if (state === 'active') refreshDate(); });
@@ -124,7 +143,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
   const calories = sum('calories'), protein = sum('protein'), carbs = sum('carbs'), fat = sum('fat');
   const steps = movementSummary.steps;
   const goalSteps = movementSummary.goal || profile.stepTarget;
-  const changeTab = (next: Tab) => { setTab(next); setMenu(false); };
+  const changeTab = (next: Tab) => { tap(); setTab(next); setMenu(false); };
   const openMeal = () => { setMealError(''); setMealOpen(true); };
   const saveMeal = async () => {
     const name = mealName.replace(/\s+/g, ' ').trim();
@@ -136,6 +155,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
     setSaving(false);
     if (!ok) { setMealError('Meal could not be saved on this device. Your entries are still here; try again.'); return; }
     setMealValues({ calories: '', protein: '', carbs: '', fat: '' }); setMealName(''); setMealError(''); setMealOpen(false);
+    setMealSaved('Meal saved to today.'); success();
   };
   const saveSet = async () => {
     const name = exercise.replace(/\s+/g, ' ').trim();
@@ -151,6 +171,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
     setSaving(false);
     if (!ok) { setSetError('Set could not be saved on this device. Please try again.'); return; }
     setLoad(''); setReps(''); setSetError('');
+    setSetSaved('Set saved to today.'); success();
     if (setType === 'working') setRestStartKey(v => v + 1);
     if (weightRecord || oneRmRecord) setRecord({ exercise: name, kind: oneRmRecord ? 'Estimated 1RM' : 'Weight', value: oneRmRecord ? estimatedOneRm : weight });
   };
@@ -164,6 +185,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
     const ok = await fit.saveTargets({ calorieTarget: Number(targetForm.calories), proteinTarget: Number(targetForm.protein), carbsTarget: Number(targetForm.carbs), fatTarget: Number(targetForm.fat) });
     setSaving(false);
     setTargetMessage(ok ? 'Daily targets saved.' : 'Could not save these targets. Check your values.');
+    if (ok) success();
     if (ok) setTargets(null);
   };
   const planForm = plan ?? {
@@ -191,6 +213,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
     setTargets(null);
     setTargetMessage('');
     setPlanMessage('Your plan is applied. Nutrition targets are up to date.');
+    success();
   };
   const heading = (eyebrow: string, title: string, description: string) => <View style={s.pageHeading}>
     <Label colors={colors}>{eyebrow}</Label><Title colors={colors}>{title}</Title><Muted colors={colors}>{description}</Muted>
@@ -219,67 +242,84 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
     <View style={[s.callout, { backgroundColor: colors.background }]}><View style={s.rowContent}><Label colors={colors}>YOUR DAILY PLAN</Label><Text style={[s.smallStrong, { color: colors.foreground }]}>{number(Math.abs(profile.calorieTarget-calories))} kcal {calories > profile.calorieTarget ? 'over' : 'left'} · {number(Math.abs(profile.proteinTarget-protein))}g protein {protein > profile.proteinTarget ? 'over' : 'left'}</Text></View>
       <Pressable onPress={openMeal} style={[s.smallButton, { backgroundColor: colors.primary }]}><Text style={{ color: colors.primaryForeground, fontFamily: 'DMSans_700Bold', fontSize: 11 }}>Log food</Text></Pressable></View>
   </Panel>;
-  const todayScreen = <View style={s.stack}>
-    <View style={s.pageHeading}><Label colors={colors}>TODAY, {new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date()).toUpperCase()}</Label>
-      <Title colors={colors}>Your day.</Title><Text style={[s.serif, { color: colors.secondaryForeground }]}>In progress.</Text>
-      <Muted colors={colors}><Text style={{ fontFamily: 'DMSans_700Bold', color: colors.foreground }}>{profile.name.split(' ')[0]}, </Text>see your fuel, movement and strength at a glance.</Muted></View>
-    <View style={[s.hero, { backgroundColor: colors.foreground }]}>
-      <View style={[s.heroOrbit, { borderColor: colors.accent }]}><MaterialCommunityIcons name="dumbbell" size={24} color={colors.accent} /></View>
-      <Text style={[s.heroLabel, { color: colors.accent }]}>A NOTE FOR TODAY</Text>
-      <Text style={[s.heroTitle, { color: colors.card }]}>{sets.length ? 'Keep showing up for the strong version of you.' : 'Make room for one small win today.'}</Text>
-      <Text style={[s.heroBody, { color: colors.muted }]}>{sets.length ? `${sets.length} ${sets.length === 1 ? 'set is' : 'sets are'} logged today.` : 'No strength sets are logged yet. Your next set can be the first.'} {Math.max(0, goalSteps - steps).toLocaleString()} steps remain in your movement goal.</Text>
-      <Pressable onPress={() => changeTab('Strength')}><Text style={[s.heroLink, { color: colors.accent }]}>See your strength work  →</Text></Pressable>
+  const nextAction: { label: string; detail: string; section: Tab; icon: keyof typeof Feather.glyphMap } =
+    pending.length ? { label: 'Finish your workout', detail: `${pending.length} ${pending.length === 1 ? 'set' : 'sets'} ready to finish`, section: 'Strength', icon: 'check-circle' } :
+    !meals.length ? { label: 'Log your first meal', detail: 'Start today’s food journal', section: 'Nutrition', icon: 'plus' } :
+    !sets.length ? { label: 'Log a strength set', detail: 'Record your next exercise', section: 'Strength', icon: 'activity' } :
+    steps < goalSteps ? { label: 'Check your movement', detail: `${number(goalSteps - steps)} steps to your goal`, section: 'Movement', icon: 'navigation' } :
+    { label: 'Review your week', detail: 'See what your journal shows', section: 'Insights', icon: 'bar-chart-2' };
+  const todayScreen = <View style={s.todayStack}>
+    <View style={s.todayHeading}>
+      <Label colors={colors}>{new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(dateNow).toUpperCase()}</Label>
+      <Text style={[s.todayTitle, { color: colors.foreground }]}>Today<Text style={{ color: colors.secondaryForeground }}>.</Text></Text>
+      <Muted colors={colors}>Your progress, at a glance.</Muted>
     </View>
-    <View><Label colors={colors}>THE DAILY PICTURE</Label><Text style={[s.sectionTitle, { color: colors.foreground }]}>Small wins, adding up.</Text><Muted colors={colors}>No perfect days required</Muted></View>
-    <View style={s.statGrid}>
+    <View style={[s.todaySummary, { backgroundColor: colors.foreground }]}>
+      <View style={s.between}><Text style={[s.heroLabel, { color: colors.accent }]}>DAILY JOURNAL</Text><Feather name="activity" size={18} color={colors.accent} /></View>
+      <Text style={[s.todaySummaryNumber, { color: colors.card }]}>{number(calories)} <Text style={[s.todaySummaryUnit, { color: colors.muted }]}>/ {number(profile.calorieTarget)} kcal</Text></Text>
+      <Meter value={calories} target={profile.calorieTarget} color={colors.accent} colors={colors} />
+      <Text style={[s.heroBody, { color: colors.muted }]}>{meals.length} {meals.length === 1 ? 'meal' : 'meals'} logged today</Text>
+    </View>
+    <View style={[s.todayMetrics, { backgroundColor: colors.card, borderColor: colors.border }]}>
       {([
-        ['FOOD', calories, 'kcal', profile.calorieTarget, colors.primary, 'activity'],
-        ['PROTEIN', protein, 'g', profile.proteinTarget, colors.secondaryForeground, 'target'],
-        ['MOVEMENT', steps, 'steps', goalSteps, colors.accent, 'navigation'],
-      ] as const).map(([label, value, unit, target, tint, icon], i) => <Pressable key={label} onPress={() => changeTab(i === 2 ? 'Movement' : 'Nutrition')}
-        style={[s.stat, i === 0 && s.statWide, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={s.statHeading}><View style={[s.statIcon, { backgroundColor: tint }]}><Feather name={icon} size={14} color={i === 2 ? colors.foreground : colors.card} /></View><Text style={[s.statLabel, { color: colors.mutedForeground }]}>{label}</Text></View>
-        <Text style={[s.statValue, { color: colors.foreground }]}>{number(value)} <Text style={[s.statUnit, { color: colors.mutedForeground }]}>{unit}</Text></Text>
-        <Muted colors={colors} style={s.micro}>{Math.round(target ? value / target * 100 : 0)}% of daily target · {number(Math.abs(target - value))} {value > target ? 'over' : 'left'}</Muted>
-        <Meter colors={colors} color={tint} value={value} target={target} />
+        ['Protein', `${number(protein)}g`, `${number(profile.proteinTarget)}g goal`, 'Nutrition'],
+        ['Steps', number(steps), `${number(goalSteps)} goal`, 'Movement'],
+        ['Strength', String(sets.length), 'sets today', 'Strength'],
+      ] as const).map(([label, value, detail, destination], i) => <Pressable accessibilityRole="button" key={label} onPress={() => changeTab(destination)}
+        style={[s.todayMetric, i > 0 && { borderLeftColor: colors.border, borderLeftWidth: 1 }]}>
+        <Text style={[s.statLabel, { color: colors.mutedForeground }]}>{label.toUpperCase()}</Text>
+        <Text style={[s.todayMetricValue, { color: colors.foreground }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+        <Muted colors={colors} style={s.micro}>{detail}</Muted>
       </Pressable>)}
     </View>
-    <FastingCard />
-    <Pressable onPress={() => changeTab('Insights')} style={[s.insightsLink, { borderColor: colors.border, backgroundColor: colors.card }]}>
-      <View style={s.rowContent}><Text style={[s.smallStrong, { color: colors.foreground }]}>Your last 7 days</Text><Muted colors={colors}>Food, weight, steps & strength — from your journal.</Muted></View><Text style={[s.link, { color: colors.primary }]}>See trends  →</Text>
-    </Pressable>
-    {nutritionCard()}{mealList(true)}
-    <Pressable onPress={() => changeTab('Strength')} style={[s.strengthTeaser, { backgroundColor: colors.secondary }]}>
-      <View style={[s.mealIcon, { backgroundColor: colors.secondaryForeground }]}><MaterialCommunityIcons name="dumbbell" size={19} color={colors.card} /></View>
-      <View style={s.rowContent}><Label colors={colors}>STRENGTH SESSION</Label><Text style={[s.smallStrong, { color: colors.foreground }]}>{sets.length ? 'Strength work, captured.' : 'A fresh start for strength.'}</Text><Muted colors={colors}>{sets.length} sets logged today</Muted></View>
-      <Text style={[s.link, { color: colors.secondaryForeground }]}>View →</Text>
-    </Pressable>
-    <Muted colors={colors} style={{ textAlign: 'center', marginTop: 8 }}>GYM Buddy · Built around your life, not the other way around.</Muted>
+    <View>
+      <Label colors={colors}>UP NEXT</Label>
+      <Pressable accessibilityRole="button" testID="today-next-action" onPress={() => changeTab(nextAction.section)} style={({ pressed }) => [s.nextCard, { backgroundColor: colors.secondary, opacity: pressed ? .78 : 1 }]}>
+        <View style={[s.nextIcon, { backgroundColor: colors.accent }]}><Feather name={nextAction.icon} size={20} color={colors.foreground} /></View>
+        <View style={s.rowContent}><Text style={[s.nextTitle, { color: colors.foreground }]}>{nextAction.label}</Text><Muted colors={colors}>{nextAction.detail}</Muted></View>
+        <Feather name="arrow-up-right" size={20} color={colors.secondaryForeground} />
+      </Pressable>
+    </View>
   </View>;
   const nutritionScreen = <View style={s.stack}>
-    {heading('FUEL LOG · TODAY', 'Macros that make sense.', 'Log the meal, then get back to living. No food guilt, no spreadsheet energy.')}
-    <Panel colors={colors}><Label colors={colors}>YOUR DAILY TARGETS</Label><Text style={[s.sectionTitle, { color: colors.foreground }]}>Choose your goals</Text><Muted colors={colors}>Current focus: {profile.goal}</Muted>
+    {heading('NUTRITION · TODAY', 'Nutrition log', 'Meals, water, and daily targets.')}
+    {!!mealSaved && <Text accessibilityRole="alert" style={[s.feedback, { color: colors.secondaryForeground }]}>{mealSaved}</Text>}
+    <Panel colors={colors}><Label colors={colors}>YOUR DAILY TARGETS</Label><Text style={[s.sectionTitle, { color: colors.foreground }]}>Daily goals</Text><Muted colors={colors}>Current focus: {profile.goal}</Muted>
       <View style={s.twoColumns}>{(['calories', 'protein', 'carbs', 'fat'] as const).map(k => <View key={k} style={s.half}>
         <Field label={`${k[0].toUpperCase()+k.slice(1)} (${k === 'calories' ? 'kcal' : 'g'})`} numeric value={targetForm[k]} onChange={v => updateTarget(k, v)} colors={colors} testID={`target-${k}`} />
       </View>)}</View>
       {!!targetMessage && <Text style={[s.feedback, { color: targetMessage.includes('saved') ? colors.secondaryForeground : colors.destructive }]}>{targetMessage}</Text>}
-       <Action colors={colors} onPress={() => void saveGoals()} disabled={saving} testID="save-targets">Save daily targets</Action>
+        <Action colors={colors} onPress={() => void saveGoals()} disabled={saving} testID="save-targets">{saving ? 'Saving…' : 'Save daily targets'}</Action>
     </Panel>
     {nutritionCard()}
+    <FastingCard />
     <WaterIntakeCard todayMl={fit.water[today] ?? 0} goalMl={profile.waterGoalMl}
       onAdd={fit.addWater} onRemove={fit.removeWater} onSetGoal={fit.setWaterGoal} />
     <MealTemplates onLog={fit.addMeal} />
     {mealList()}
   </View>;
   const strengthScreen = <View style={s.stack}>
-    {heading('STRENGTH LOG · TODAY', 'The work adds up.', 'One good set is enough to keep the story moving.')}
-    <LiveWorkout steps={steps} stepDate={today} />
+    {heading('STRENGTH · TODAY', 'Strength log', 'Sessions and sets in one place.')}
+    {!!setSaved && <Text accessibilityRole="alert" style={[s.feedback, { color: colors.secondaryForeground }]}>{setSaved}</Text>}
+     <LiveWorkout steps={steps} stepDate={today} onComplete={(kind, startedAt, sessionId) => {
+       if (kind !== 'strength') return;
+       const completed = new Set(fit.completedWorkouts.flatMap(x => x.setIds));
+       const associated = fit.sets.some(x => x.loggedAt !== undefined && x.loggedAt >= startedAt && x.loggedAt <= Date.now() && !completed.has(x.id));
+       if (!associated) return;
+       setSaving(true);
+       void fit.finishWorkout({ since: startedAt, sessionId }).then(ok => {
+         setSaving(false);
+         setFinishMessage(ok ? 'Strength session and its sets saved.' : 'Session saved, but its sets could not be finished. Review pending sets before finishing them.');
+         if (ok) success();
+       });
+     }} />
     <IntervalTimer />
     <Panel colors={colors} style={{ backgroundColor: colors.secondary }}>
       <Label colors={colors}>STRENGTH SETS · TODAY</Label><Text style={[s.bigNumber, { color: colors.secondaryForeground }]}>{sets.length} <Text style={s.numberUnit}>sets logged</Text></Text>
       <Muted colors={colors}>{pending.length} {pending.length === 1 ? 'set' : 'sets'} awaiting Finish workout · {fit.completedWorkouts.filter(x => x.date === today).length} completed set-log sessions</Muted>
-      <Muted colors={colors}>Live workouts are saved separately in the session history above.</Muted>
-       <Action colors={colors} onPress={() => void fit.finishWorkout()} disabled={!pending.length || saving} testID="finish-workout">Finish workout</Action>
+       <Muted colors={colors}>Live sessions are saved in the history above.</Muted>
+       {!!finishMessage && <Text accessibilityRole="alert" style={[s.feedback, { color: finishMessage === 'Workout saved.' || finishMessage.startsWith('Strength session and') ? colors.secondaryForeground : colors.destructive }]}>{finishMessage}</Text>}
+        <Action colors={colors} onPress={() => { setSaving(true); void fit.finishWorkout().then(ok => { setSaving(false); setFinishMessage(ok ? 'Workout saved.' : 'Could not finish workout. Try again.'); if (ok) success(); }); }} disabled={!pending.length || saving} testID="finish-workout">{saving ? 'Saving…' : 'Finish workout'}</Action>
     </Panel>
     <Panel colors={colors}><Label colors={colors}>LOG A SET</Label><Text style={[s.sectionTitle, { color: colors.foreground }]}>Show up for one rep.</Text>
       <Field label="Exercise" value={exercise} onChange={setExercise} placeholder="e.g. Back squat" colors={colors} testID="set-exercise" />
@@ -287,7 +327,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
         <View style={s.half}><Field label="Reps" numeric value={reps} onChange={setReps} placeholder="8" colors={colors} testID="set-reps" /></View></View>
       <Text style={[s.fieldLabel, { color: colors.foreground }]}>Set type</Text><Select values={['warmup', 'working', 'drop', 'failure'] as const} value={setType} onChange={setSetType} colors={colors} />
       {!!setError && <Text style={[s.feedback, { color: colors.destructive }]}>{setError}</Text>}
-       <Action colors={colors} onPress={() => void saveSet()} disabled={saving} testID="add-set">+  Log set</Action>
+        <Action colors={colors} onPress={() => void saveSet()} disabled={saving} testID="add-set">{saving ? 'Saving…' : 'Log set'}</Action>
     </Panel>
     <Panel colors={colors}><Label colors={colors}>TRAINING HISTORY</Label><Text style={[s.sectionTitle, { color: colors.foreground }]}>The record, kept.</Text>
       {fit.sets.length ? [...fit.sets].reverse().map(x => <View key={x.id} style={[s.listRow, { borderBottomColor: colors.border }]}>
@@ -307,13 +347,45 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
   const weekWeights = fit.weights.filter(x => inWeek(x.date));
   const loggedSteps = movementSummary.week.filter(x => inWeek(x.date) && x.steps !== null);
   const hasWeek = weekMeals.length > 0 || weekSets.length > 0 || weekWeights.length > 0 || loggedSteps.length > 0 || days.some(d => (fit.water[d] ?? 0) > 0) || fit.completedWorkouts.some(x => inWeek(x.date));
+  const previousDays = days.map(d => { const prior = fmtDate(d); prior.setDate(prior.getDate() - 7); return dateKey(prior); });
+  const previousMeals = fit.meals.filter(x => previousDays.includes(x.date));
+  const previousSets = fit.sets.filter(x => previousDays.includes(x.date));
+  const previousSteps = movementSummary.week.filter(x => previousDays.includes(x.date) && x.steps !== null);
+  const comparison = (current: number, previous: number, available: boolean, unit: string) =>
+    available ? `${current > previous ? '+' : ''}${number(current - previous)} ${unit} vs previous week` : 'No previous-week entries to compare';
+  const records = Array.from(new Set(fit.sets.map(x => x.exercise.trim().toLowerCase()))).map(key => {
+    const entries = fit.sets.filter(x => x.exercise.trim().toLowerCase() === key);
+    const best = entries.reduce((top, x) => x.estimatedOneRm > top.estimatedOneRm ? x : top);
+    return best;
+  }).filter(x => inWeek(x.date)).sort((a, b) => b.estimatedOneRm - a.estimatedOneRm).slice(0, 3);
   const insightsScreen = <View style={s.stack}>
-    {heading('THE WEEKLY EDIT', 'A little perspective.', 'A quiet look at what you chose to record. Every entry counts.')}
+    {heading('YOUR JOURNAL', 'Insights', 'Compare logged activity week by week.')}
     <View style={[s.weekNav, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <Pressable testID="previous-week" onPress={() => setWeekOffset(v => v-1)} hitSlop={12}><Feather name="chevron-left" color={colors.foreground} size={23} /></Pressable>
       <View style={{ alignItems: 'center' }}><Label colors={colors}>{weekOffset === 0 ? 'THIS WEEK' : 'YOUR JOURNAL'}</Label><Text style={[s.smallStrong, { color: colors.foreground }]}>{fmtDate(days[0]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {fmtDate(days[6]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text></View>
       <Pressable testID="next-week" disabled={weekOffset === 0} onPress={() => setWeekOffset(v => Math.min(0, v+1))} hitSlop={12}><Feather name="chevron-right" color={weekOffset === 0 ? colors.mutedForeground : colors.foreground} size={23} /></Pressable>
     </View>
+    <Panel colors={colors}>
+      <Label colors={colors}>THIS WEEK / LAST WEEK</Label>
+      <Text style={[s.sectionTitle, { color: colors.foreground }]}>Weekly comparison</Text>
+      {([
+        ['Meals', weekMeals.length, previousMeals.length, previousMeals.length > 0, 'meals'],
+        ['Strength sets', weekSets.length, previousSets.length, previousSets.length > 0, 'sets'],
+        ['Recorded steps', loggedSteps.reduce((n, x) => n + (x.steps ?? 0), 0), previousSteps.reduce((n, x) => n + (x.steps ?? 0), 0), previousSteps.length > 0, 'steps'],
+      ] as const).map(([label, current, prior, available, unit]) => <View key={label} style={[s.comparisonRow, { borderTopColor: colors.border }]}>
+        <View style={s.rowContent}><Text style={[s.smallStrong, { color: colors.foreground }]}>{label}</Text><Muted colors={colors}>{comparison(current, prior, available, unit)}</Muted></View>
+        <Text style={[s.comparisonValue, { color: colors.secondaryForeground }]}>{number(current)}</Text>
+      </View>)}
+      <Muted colors={colors} style={s.micro}>Only recorded entries are compared. Missing days are not counted as zero.</Muted>
+    </Panel>
+    <Panel colors={colors}>
+      <Label colors={colors}>STRENGTH HIGHLIGHTS</Label>
+      <Text style={[s.sectionTitle, { color: colors.foreground }]}>Best lifts this week</Text>
+      {records.length ? records.map(x => <View key={x.id} style={[s.comparisonRow, { borderTopColor: colors.border }]}>
+        <View style={s.rowContent}><Text style={[s.smallStrong, { color: colors.foreground }]}>{x.exercise}</Text><Muted colors={colors}>All-time best estimated 1RM · {x.date}</Muted></View>
+        <Text style={[s.smallStrong, { color: colors.secondaryForeground }]}>{number(x.estimatedOneRm)} kg</Text>
+      </View>) : <Muted colors={colors}>No all-time best sets logged in this week yet.</Muted>}
+    </Panel>
     {!hasWeek ? <Panel colors={colors}><View style={s.empty}><Feather name="book-open" color={colors.primary} size={33} /><Label colors={colors}>A FRESH PAGE</Label><Text style={[s.sectionTitle, { color: colors.foreground, textAlign: 'center' }]}>Nothing logged here yet. That’s okay.</Text><Muted colors={colors} style={{ textAlign: 'center' }}>This week has no entries in your journal. That doesn’t mean you weren’t moving, drinking water, eating well, or getting stronger.</Muted>
       <Action colors={colors} onPress={() => changeTab('Nutrition')}>Log food or water</Action><Action colors={colors} secondary onPress={() => changeTab('Movement')}>Log movement</Action></View></Panel> : <>
       <View style={[s.hero, { backgroundColor: colors.foreground }]}><Text style={[s.heroLabel, { color: colors.accent }]}>MOVEMENT / 01</Text><Text style={[s.heroTitle, { color: colors.card }]}>The steps you recorded.</Text><Text style={[s.heroBody, { color: colors.muted }]}>{loggedSteps.length ? `${loggedSteps.reduce((n, x) => n + (x.steps ?? 0), 0).toLocaleString()} steps across ${loggedSteps.length} logged ${loggedSteps.length === 1 ? 'day' : 'days'}.` : 'No step history logged this week.'}</Text>
@@ -391,24 +463,27 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
       {!validPlan && <Text style={[s.feedback, { color: colors.destructive }]}>Enter a weight of 20–500 kg, height of 100–230 cm, and age of 14–90.</Text>}
       {validPlan && !validResult && <Text style={[s.feedback, { color: colors.destructive }]}>This plan exceeds the supported target range. Adjust your inputs.</Text>}
        {!!planMessage && <Text style={[s.feedback, { color: planMessage.startsWith('Adjust') || planMessage.includes('could not') ? colors.destructive : colors.secondaryForeground }]}>{planMessage}</Text>}
-       <Action colors={colors} onPress={() => void apply()} disabled={!validResult || saving} testID="apply-plan">Apply these targets</Action>
+       <Action colors={colors} onPress={() => void apply()} disabled={!validResult || saving} testID="apply-plan">{saving ? 'Applying…' : 'Apply these targets'}</Action>
     </Panel>
     <Panel colors={colors}><Label colors={colors}>BMI CALCULATOR</Label><Text style={[s.sectionTitle, { color: colors.foreground }]}>One number, some context.</Text><Text style={[s.bigNumber, { color: colors.foreground }]}>{validPlan ? bmi.toFixed(1) : '—'}</Text><Muted colors={colors}>{validPlan ? bmi < 18.5 ? 'Below healthy range' : bmi < 25 ? 'Healthy range' : bmi < 30 ? 'Above healthy range' : 'High range' : 'Enter valid measurements to calculate.'}</Muted><Muted colors={colors}>BMI is one signal, not a complete picture of health or athleticism.</Muted></Panel>
   </View>;
   return <View style={[s.root, { backgroundColor: colors.background }]}>
     <View style={[s.header, { paddingTop: Platform.OS === 'web' ? 67 : insets.top + 10, backgroundColor: colors.background, borderBottomColor: colors.border }]}>
       <View style={s.brand}><View style={[s.brandMark, { backgroundColor: colors.accent }]}><MaterialCommunityIcons name="dumbbell" size={19} color={colors.foreground} /></View><Text style={[s.brandText, { color: colors.foreground }]}>GYM <Text style={{ color: colors.secondaryForeground }}>Buddy</Text></Text></View>
-      <Pressable testID="open-menu" accessibilityLabel="Open menu" onPress={() => setMenu(v => !v)} style={[s.menuButton, { borderColor: colors.border, backgroundColor: colors.card }]}><Feather name={menu ? 'x' : 'menu'} size={19} color={colors.foreground} /></Pressable>
+      <Pressable testID="open-menu" accessibilityRole="button" accessibilityLabel="Open menu" onPress={() => { tap(); setMenu(v => !v); }} style={[s.menuButton, { borderColor: colors.border, backgroundColor: colors.card }]}><Feather name={menu ? 'x' : 'user'} size={19} color={colors.foreground} /></Pressable>
     </View>
     {menu && <View style={[s.menu, { top: (Platform.OS === 'web' ? 67 : insets.top + 10) + 48, backgroundColor: colors.card, borderColor: colors.border }]}>
       <Pressable testID="nav-my-plan" onPress={() => changeTab('My plan')} style={s.menuItem}><Feather name="clipboard" size={18} color={colors.primary} /><Text style={[s.smallStrong, { color: colors.foreground }]}>My plan</Text><Feather name="arrow-right" size={16} color={colors.primary} /></Pressable>
       <Pressable testID="open-profile" onPress={() => { setMenu(false); setProfileOpen(true); }} style={s.menuItem}><Feather name="user" size={18} color={colors.primary} /><Text style={[s.smallStrong, { color: colors.foreground }]}>Edit profile</Text><Feather name="arrow-right" size={16} color={colors.primary} /></Pressable>
     </View>}
-    <View style={[s.navWrap, { backgroundColor: colors.card, borderBottomColor: colors.border }]}><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.nav}>
-      {tabs.map(t => <Pressable key={t} testID={`nav-${t.toLowerCase()}`} onPress={() => changeTab(t)} style={[s.navItem, { backgroundColor: tab === t ? colors.accent : colors.card }]}>
-        <Feather name={icons[t]} size={16} color={tab === t ? colors.foreground : colors.mutedForeground} /><Text style={[s.navText, { color: tab === t ? colors.foreground : colors.mutedForeground }]}>{t}</Text>
-      </Pressable>)}
-    </ScrollView></View>
+    {(tab === 'Nutrition' || tab === 'Strength') && <View style={[s.logSwitchWrap, { backgroundColor: colors.background }]}>
+      <View style={[s.logSwitch, { backgroundColor: colors.secondary }]}>
+        {(['Nutrition', 'Strength'] as const).map(section => <Pressable key={section} testID={`switch-${section.toLowerCase()}`} accessibilityRole="tab" accessibilityState={{ selected: tab === section }} onPress={() => changeTab(section)}
+          style={({ pressed }) => [s.logSwitchItem, { backgroundColor: tab === section ? colors.card : colors.secondary, opacity: pressed ? .7 : 1 }]}>
+          <Text style={[s.logSwitchText, { color: tab === section ? colors.foreground : colors.mutedForeground }]}>{section}</Text>
+        </Pressable>)}
+      </View>
+    </View>}
     <View style={{ display: tab === 'Movement' ? 'flex' : 'none', flex: 1 }}>
       <Pressable testID="movement-start-workout" onPress={() => changeTab('Strength')} style={[s.movementLauncher, { backgroundColor: colors.secondary, borderBottomColor: colors.border }]}>
         <Feather name="play-circle" size={19} color={colors.secondaryForeground} />
@@ -425,6 +500,16 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
          {section === 'Today' ? todayScreen : section === 'Nutrition' ? nutritionScreen : section === 'Strength' ? strengthScreen : section === 'Insights' ? insightsScreen : planScreen}
        </View>}
      </KeyboardAwareScrollViewCompat>)}
+    <View style={[s.navWrap, { backgroundColor: colors.card, borderTopColor: colors.border, paddingBottom: Platform.OS === 'web' ? 34 : insets.bottom }]}>
+      <View style={s.nav}>{tabs.map(t => {
+        const selected = t === 'Log' ? tab === 'Nutrition' || tab === 'Strength' : t === 'Plan' ? tab === 'My plan' : tab === t;
+        const destination: Tab = t === 'Log' ? (tab === 'Strength' ? 'Strength' : 'Nutrition') : t === 'Plan' ? 'My plan' : t;
+        return <Pressable key={t} testID={`nav-${t.toLowerCase()}`} accessibilityRole="tab" accessibilityState={{ selected }} onPress={() => changeTab(destination)} style={({ pressed }) => [s.navItem, { opacity: pressed ? .65 : 1 }]}>
+          <View style={[s.navIcon, { backgroundColor: selected ? colors.accent : colors.card }]}><Feather name={icons[t]} size={20} color={selected ? colors.foreground : colors.mutedForeground} /></View>
+          <Text style={[s.navText, { color: selected ? colors.foreground : colors.mutedForeground }]}>{t}</Text>
+        </Pressable>;
+      })}</View>
+    </View>
     <Modal visible={mealOpen} animationType="slide" transparent onRequestClose={() => { if (!saving) setMealOpen(false); }}>
       <View style={[s.modalBackdrop, { backgroundColor: colors.foreground + '99' }]}>
          <KeyboardAwareScrollViewCompat bottomOffset={60} keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 18, paddingVertical: Platform.OS === 'web' ? 67 : insets.top + 15 }}>
@@ -435,7 +520,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
             <Field label="What did you eat?" value={mealName} onChange={setMealName} colors={colors} placeholder="e.g. Oatmeal and fruit" testID="meal-name" />
             <View style={s.twoColumns}>{(['calories', 'protein', 'carbs', 'fat'] as const).map(k => <View key={k} style={s.half}><Field label={`${k[0].toUpperCase()+k.slice(1)} (${k === 'calories' ? 'kcal' : 'g'})`} value={mealValues[k]} onChange={v => setMealValues({ ...mealValues, [k]: v })} colors={colors} numeric testID={`meal-${k}`} /></View>)}</View>
             {!!mealError && <Text style={[s.feedback, { color: colors.destructive }]}>{mealError}</Text>}
-             <Action colors={colors} onPress={() => void saveMeal()} disabled={saving} testID="save-meal">Add to today</Action>
+             <Action colors={colors} onPress={() => void saveMeal()} disabled={saving} testID="save-meal">{saving ? 'Saving…' : 'Save meal'}</Action>
           </View>
          </KeyboardAwareScrollViewCompat>
       </View>
@@ -453,20 +538,39 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
 
 const s = StyleSheet.create({
   root: { flex: 1, minHeight: 400 },
-  header: { paddingHorizontal: 17, paddingBottom: 11, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1 },
+  header: { paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1 },
   brand: { flexDirection: 'row', gap: 9, alignItems: 'center' },
   brandMark: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   brandText: { fontFamily: 'DMSans_700Bold', fontSize: 20, letterSpacing: -1.2 },
   menuButton: { borderWidth: 1, width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   menu: { position: 'absolute', top: Platform.OS === 'web' ? 119 : 93, right: 16, zIndex: 10, borderWidth: 1, borderRadius: 12, padding: 8, width: 170, elevation: 5 },
   menuItem: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },
-  navWrap: { borderBottomWidth: 1 },
-  nav: { paddingHorizontal: 10, paddingVertical: 7, gap: 3 },
-  navItem: { width: 76, height: 52, borderRadius: 9, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  navText: { fontFamily: 'DMSans_700Bold', fontSize: 9 },
+  navWrap: { borderTopWidth: 1 },
+  nav: { flexDirection: 'row', paddingHorizontal: 6, paddingTop: 7, paddingBottom: 3 },
+  navItem: { flex: 1, minHeight: 53, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  navIcon: { width: 42, height: 30, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  navText: { fontFamily: 'DMSans_700Bold', fontSize: 10 },
+  logSwitchWrap: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
+  logSwitch: { flexDirection: 'row', borderRadius: 12, padding: 4 },
+  logSwitchItem: { flex: 1, minHeight: 37, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
+  logSwitchText: { fontFamily: 'DMSans_700Bold', fontSize: 13 },
   movementLauncher: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18, paddingVertical: 12, borderBottomWidth: 1 },
-  content: { paddingHorizontal: 16, paddingTop: 25, maxWidth: 610, width: '100%', alignSelf: 'center' },
+  content: { paddingHorizontal: 20, paddingTop: 22, maxWidth: 610, width: '100%', alignSelf: 'center' },
   stack: { gap: 15 },
+  todayStack: { gap: 21 },
+  todayHeading: { gap: 2, paddingTop: 4, paddingBottom: 3 },
+  todayTitle: { fontFamily: 'DMSans_700Bold', fontSize: 42, lineHeight: 49, letterSpacing: -2.3 },
+  todaySummary: { borderRadius: 18, padding: 20, gap: 14 },
+  todaySummaryNumber: { fontFamily: 'DMSans_700Bold', fontSize: 38, letterSpacing: -1.8 },
+  todaySummaryUnit: { fontFamily: 'DMSans_400Regular', fontSize: 14, letterSpacing: 0 },
+  todayMetrics: { flexDirection: 'row', borderWidth: 1, borderRadius: 16, paddingVertical: 17 },
+  todayMetric: { flex: 1, paddingHorizontal: 11, gap: 6 },
+  todayMetricValue: { fontFamily: 'DMSans_700Bold', fontSize: 22, letterSpacing: -.8 },
+  nextCard: { marginTop: 10, borderRadius: 16, minHeight: 87, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 13 },
+  nextIcon: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  nextTitle: { fontFamily: 'DMSans_700Bold', fontSize: 16, letterSpacing: -.3 },
+  comparisonRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, paddingVertical: 11, gap: 8 },
+  comparisonValue: { fontFamily: 'DMSans_700Bold', fontSize: 21, letterSpacing: -.7 },
   pageHeading: { gap: 6, marginBottom: 5 },
   label: { fontFamily: 'DMSans_700Bold', fontSize: 9, letterSpacing: 1.5, lineHeight: 14 },
   title: { fontFamily: 'DMSans_700Bold', fontSize: 38, lineHeight: 42, letterSpacing: -2.2 },

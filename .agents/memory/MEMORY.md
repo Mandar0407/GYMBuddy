@@ -11,5 +11,5 @@
 - [Browser-local privacy](browser-local-privacy.md) — FitPulse keeps browser-local profile and pairing data visible rather than using reversible obfuscation.
 - [Brand compatibility](brand-compatibility.md) — name/logo edits preserve GYM Buddy’s original UI palette and legacy identifiers for existing users.
 - [Expo dependency audit compatibility](expo-audit-compatibility.md) — audit overrides may select ESM-only packages incompatible with Expo Router’s older CommonJS dependency chain.
-- [Mobile journal locality](mobile-journal-locality.md) — the phone journal is separate from the website’s browser journal; only paired Movement data crosses devices.
+- [Paired journal sync](mobile-journal-locality.md) — paired journals merge conservatively; unpaired records and active drafts remain local.
 - [Expo DevTools startup warning](expo-devtools-startup-warning.md) — a missing shared library can prevent optional DevTools installation without breaking Metro or the app preview.

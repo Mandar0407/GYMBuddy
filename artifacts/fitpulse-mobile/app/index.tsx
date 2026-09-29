@@ -93,6 +93,10 @@ function MovementScreen({ embedded, onSummaryChange }: { embedded?: boolean; onS
     onSummaryChange?.({ steps, goal, paired, week: [...history].map(([date, count]) => ({ date, steps: count })) });
   }, [steps, goal, paired, historySignature, onSummaryChange]);
 
+  useEffect(() => {
+    fitness.setMovementSteps(localToday || remoteToday ? steps : null);
+  }, [steps, localToday, remoteToday, fitness.setMovementSteps]);
+
   const readHistory = useCallback(async (pairKey: string) => {
     if (Platform.OS !== 'ios') return;
     setSensor('reading');
@@ -139,7 +143,12 @@ function MovementScreen({ embedded, onSummaryChange }: { embedded?: boolean; onS
 
   useEffect(() => {
     let alive = true;
-    readPairKey().then((saved) => { if (alive && saved) setKey(saved); })
+    readPairKey().then((saved) => {
+      if (alive && saved) {
+        setKey(saved);
+        void fitness.setJournalPairingKey(saved);
+      }
+    })
       .catch(() => { if (alive) setPairError('Could not read the saved pairing key.'); });
     if (Platform.OS === 'ios') {
       import('expo-sensors').then(async ({ Pedometer }) => {
@@ -153,7 +162,7 @@ function MovementScreen({ embedded, onSummaryChange }: { embedded?: boolean; onS
       }).catch(() => { if (alive) setSensor('unavailable'); });
     }
     return () => { alive = false; };
-  }, []);
+  }, [fitness.setJournalPairingKey]);
 
   useEffect(() => {
     if (sensor !== 'ready') return;
@@ -186,6 +195,7 @@ function MovementScreen({ embedded, onSummaryChange }: { embedded?: boolean; onS
       await getMovement({ headers: { Authorization: `Bearer ${next}` } });
       await savePairKey(next);
       setKey(next); setPairInput('');
+      await fitness.setJournalPairingKey(next);
       setMessage('Connected to your GYM Buddy Movement page.');
       if (Platform.OS !== 'web') await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch { setPairError('Key not found or server unavailable. Check the key and connection.'); }
@@ -306,6 +316,18 @@ function MovementScreen({ embedded, onSummaryChange }: { embedded?: boolean; onS
           {button('Pair my movement', () => void pair(), 'pair-movement')}
           {!!pairError && <Text style={{ color: colors.destructive }}>{pairError}</Text>}
         </>}
+        {!!key && <Text style={[styles.description, { color: colors.mutedForeground }]}>
+          Journal sync covers meals, strength sets, completed sessions, water, weight, goals, saved meal templates and completed live workouts. Active workout drafts stay on this phone.
+        </Text>}
+        {!!key && <View style={styles.row}>
+          <Text accessibilityRole="alert" style={[styles.description, { color: fitness.journalSyncError ? colors.destructive : colors.mutedForeground, flex: 1 }]}>
+            {fitness.journalSyncStatus === 'syncing' ? 'Syncing meals, workouts and goals…'
+              : fitness.journalSyncError || (fitness.journalSyncStatus === 'synced' ? 'Journal synced.' : 'Journal sync is waiting.')}
+          </Text>
+          <Pressable testID="refresh-journal-sync" disabled={fitness.journalSyncStatus === 'syncing'} onPress={() => void fitness.syncJournal()}>
+            <Text style={{ color: colors.primary, fontWeight: '700' }}>Refresh</Text>
+          </Pressable>
+        </View>}
         {!!key && movement.isError && <Text style={{ color: colors.destructive }}>Could not load paired data. Check your connection and reopen the app.</Text>}
       </>)}
       {card(<>

@@ -36,13 +36,21 @@ import PRCelebration from './PRCelebration';
 import { calculatedOneRm } from './strengthMath';
 import { useMotionSteps } from './useMotionSteps';
 import { usePairedMovement } from './usePairedMovement';
-import { useWorkoutSessions, workoutMetrics, type WorkoutKind } from './useWorkoutSessions';
+import { useWorkoutSessions, workoutMetrics, readWorkoutHistory, validWorkoutHistoryEntry, WORKOUT_HISTORY_STORAGE_KEY, type WorkoutKind, type WorkoutHistoryEntry } from './useWorkoutSessions';
+import { MEAL_TEMPLATE_STORAGE_KEY, readMealTemplates, validMealTemplate, type Template as MealTemplate } from './MealTemplates';
+import { useJournalSync, type LocalJournalRecord } from './useJournalSync';
+import {
+  adaptJournalMealToWeb, adaptJournalSetToWeb, adaptJournalTemplateToWeb,
+  adaptLegacySetToJournal, adaptLegacyTemplateToJournal, adaptLegacyWebMealToJournal,
+  adaptLiveWorkoutForWebsite, adaptLiveWorkoutToJournal,
+} from './journalSyncCore';
+import type { JournalEntity, JournalRecord } from '@workspace/api-client-react';
 import { LiveWorkoutOverlay, WorkoutCountdown, WorkoutSelectionCards } from './LiveWorkoutUI';
 import { boundedNumber, bounds, plainText } from './inputSafety';
 
 type View = 'dashboard' | 'macros' | 'workout' | 'steps' | 'insights' | 'plan';
 type Profile = { name: string; goal: string; weight: number; height: number; calorieTarget: number; proteinTarget: number; carbsTarget: number; fatTarget: number; stepTarget: number };
-type MacroLog = { id: string; meal: string; calories: number; protein: number; carbs: number; fat: number; time: string; date?: string };
+type MacroLog = { id: string; meal: string; name?: string; provenance?: string; calories: number; protein: number; carbs: number; fat: number; time: string; date?: string };
 type SetType = 'warmup' | 'working' | 'drop' | 'failure';
 type WorkoutSet = { id: string; exercise: string; weight: number; reps: number; estimatedOneRm: number; date: string; setType?: SetType };
 type CompletedWorkout = { id: string; date: string; completedAt: number; setIds: string[] };
@@ -97,6 +105,11 @@ const navItems: { id: View; label: string; icon: LucideIcon }[] = [
 
 function dateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function isDefaultProfile(value: Profile): boolean {
+  return (Object.keys(defaultProfile) as Array<keyof Profile>)
+    .every((key) => value[key] === defaultProfile[key]);
 }
 
 function todayKey() {
@@ -210,6 +223,160 @@ function readCompletedWorkouts(): CompletedWorkout[] {
     item.setIds.every((id: unknown) => typeof id === 'string'));
 }
 
+function objectValue(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function validateRemoteMeal(value: unknown): MacroLog | null {
+  if (objectValue(value)) value = adaptJournalMealToWeb(value);
+  if (!objectValue(value) || typeof value.id !== 'string' || value.id.length < 1 || value.id.length > 100 ||
+    typeof value.meal !== 'string' && typeof value.name !== 'string' ||
+    (typeof value.meal === 'string' && value.meal.length > 120) ||
+    (typeof value.name === 'string' && value.name.length > 120) ||
+    (typeof value.provenance === 'string' && value.provenance.length > 80) ||
+    !boundedNumber(value.calories, 0.01, bounds.calories) ||
+    !['protein', 'carbs', 'fat'].every((field) => boundedNumber(value[field], 0, bounds.macros)) ||
+    typeof value.time !== 'string' || value.time.length > 40 || !validDateKey(value.date)) return null;
+  const meal = plainText(typeof value.meal === 'string' ? value.meal : value.name, 120);
+  const time = plainText(value.time, 40);
+  if (!meal || !time) return null;
+  return {
+    id: value.id, date: value.date, time, meal,
+    ...(typeof value.name === 'string' ? { name: plainText(value.name, 120) } : {}),
+    ...(typeof value.provenance === 'string' ? { provenance: plainText(value.provenance, 80) } : {}),
+    calories: value.calories as number,
+    protein: value.protein as number, carbs: value.carbs as number, fat: value.fat as number,
+  };
+}
+
+function validateRemoteSet(value: unknown): WorkoutSet | null {
+  if (objectValue(value)) value = adaptJournalSetToWeb(value);
+  if (!objectValue(value) || typeof value.id !== 'string' || value.id.length < 1 || value.id.length > 100 ||
+    typeof value.exercise !== 'string' || value.exercise.length > 120 || !plainText(value.exercise, 120) ||
+    !boundedNumber(value.weight, 0.01, 500) || !boundedNumber(value.reps, 1, 30, true) ||
+    !validDateKey(value.date) ||
+    (value.setType !== undefined && !['warmup', 'working', 'drop', 'failure'].includes(String(value.setType))) ||
+    (value.loggedAt !== undefined && !(typeof value.loggedAt === 'string'
+      ? value.loggedAt.length <= 40 : boundedNumber(value.loggedAt, 0, Number.MAX_SAFE_INTEGER)))) return null;
+  const set = { ...value, exercise: plainText(value.exercise, 120) } as unknown as WorkoutSet;
+  return { ...set, estimatedOneRm: calculatedOneRm(set) };
+}
+
+function validateRemoteTemplate(value: unknown): MealTemplate | null {
+  if (!objectValue(value)) return null;
+  const adapted = adaptJournalTemplateToWeb(value);
+  return typeof adapted.id === 'string' && adapted.id.length > 0 && adapted.id.length <= 100 &&
+    validMealTemplate(adapted) ? adapted as MealTemplate : null;
+}
+
+function validateRemoteCompletedWorkout(value: unknown): CompletedWorkout | null {
+  if (!objectValue(value) || typeof value.id !== 'string' || value.id.length < 1 || value.id.length > 100 ||
+    !validDateKey(value.date) || !boundedNumber(value.completedAt, 0, Number.MAX_SAFE_INTEGER, true) ||
+    !Array.isArray(value.setIds) || !value.setIds.length ||
+    !value.setIds.every((id) => typeof id === 'string' && id.length > 0 && id.length <= 100)) return null;
+  return { id: value.id, date: value.date, completedAt: value.completedAt as number, setIds: value.setIds as string[] };
+}
+
+function validateRemoteProfile(value: unknown): Profile | null {
+  if (!objectValue(value) || typeof value.name !== 'string' || value.name.length > 80 ||
+    typeof value.goal !== 'string' || value.goal.length > 120) return null;
+  const numbers: Array<[keyof Profile, number, number, boolean?]> = [
+    ['weight', 20, 500], ['height', 100, 230],
+    ['calorieTarget', 1000, bounds.calories, true], ['proteinTarget', 1, bounds.macros, true],
+    ['carbsTarget', 1, bounds.macros, true], ['fatTarget', 1, bounds.macros, true],
+    ['stepTarget', 1000, 100000, true],
+  ];
+  if (numbers.some(([key, min, max, integer]) => !boundedNumber(value[key], min, max, integer))) return null;
+  const name = plainText(value.name, 80);
+  const goal = plainText(value.goal, 120);
+  if (!name || !goal) return null;
+  return {
+    name, goal, weight: value.weight as number, height: value.height as number,
+    calorieTarget: value.calorieTarget as number, proteinTarget: value.proteinTarget as number,
+    carbsTarget: value.carbsTarget as number, fatTarget: value.fatTarget as number,
+    stepTarget: value.stepTarget as number,
+  };
+}
+
+function validateRemoteGoals(value: unknown): Partial<Profile> | null {
+  if (!objectValue(value) ||
+    !boundedNumber(value.calorieTarget, 1000, bounds.calories, true) ||
+    !['proteinTarget', 'carbsTarget', 'fatTarget'].every((key) => boundedNumber(value[key], 1, bounds.macros, true))) return null;
+  return {
+    calorieTarget: value.calorieTarget as number,
+    proteinTarget: value.proteinTarget as number,
+    carbsTarget: value.carbsTarget as number,
+    fatTarget: value.fatTarget as number,
+  };
+}
+
+function readJournalValidationErrors(): string[] {
+  const errors: string[] = [];
+  const validateArray = (key: string, label: string, validate: (value: unknown) => boolean) => {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (raw === null) return;
+      const saved: unknown = JSON.parse(raw);
+      if (!Array.isArray(saved)) {
+        errors.push(`${label} storage is not a list`);
+        return;
+      }
+      const invalid = saved.filter((item) => !validate(item)).length;
+      if (invalid) errors.push(`${invalid} ${label} record${invalid === 1 ? '' : 's'} failed validation`);
+    } catch { errors.push(`${label} storage could not be read as valid JSON`); }
+  };
+  validateArray(STORAGE.macros, 'meal', (item) => objectValue(item) &&
+    typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 &&
+    typeof item.meal === 'string' && plainText(item.meal, 120).length > 0 &&
+    item.meal.length <= 120 &&
+    (item.name === undefined || typeof item.name === 'string' && item.name.length <= 120) &&
+    (item.provenance === undefined || typeof item.provenance === 'string' && item.provenance.length <= 80) &&
+    boundedNumber(item.calories, 0.01, bounds.calories) &&
+    ['protein', 'carbs', 'fat'].every((field) => boundedNumber(item[field], 0, bounds.macros)) &&
+    typeof item.time === 'string' && item.time.length <= 40 &&
+    (item.date === undefined || validDateKey(item.date)));
+  validateArray(STORAGE.workouts, 'strength set', (item) => objectValue(item) &&
+    typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 &&
+    typeof item.exercise === 'string' && !!plainText(item.exercise, 120) &&
+    item.exercise.length <= 120 &&
+    boundedNumber(item.weight, 0.01, 500) && boundedNumber(item.reps, 1, 30, true) &&
+    validDateKey(item.date) &&
+    (item.setType === undefined || ['warmup', 'working', 'drop', 'failure'].includes(String(item.setType))) &&
+    (item.loggedAt === undefined || (typeof item.loggedAt === 'string'
+      ? item.loggedAt.length <= 40 : boundedNumber(item.loggedAt, 0, Number.MAX_SAFE_INTEGER))));
+  validateArray(STORAGE.completedWorkouts, 'completed workout', (item) =>
+    validateRemoteCompletedWorkout(item) !== null);
+  validateArray(MEAL_TEMPLATE_STORAGE_KEY, 'meal template', (item) => validMealTemplate(item));
+  validateArray(WORKOUT_HISTORY_STORAGE_KEY, 'live workout history', (item) =>
+    objectValue(item) && validWorkoutHistoryEntry(adaptLiveWorkoutForWebsite(item)));
+
+  const validateDateMap = (key: string, label: string, min: number, max: number, integer = false) => {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (raw === null) return;
+      const saved: unknown = JSON.parse(raw);
+      if (!objectValue(saved)) {
+        errors.push(`${label} storage is not a date map`);
+        return;
+      }
+      const invalid = Object.entries(saved).filter(([date, value]) =>
+        !validDateKey(date) || !boundedNumber(value, min, max, integer)).length;
+      if (invalid) errors.push(`${invalid} ${label} date entr${invalid === 1 ? 'y' : 'ies'} failed validation`);
+    } catch { errors.push(`${label} storage could not be read as valid JSON`); }
+  };
+  validateDateMap(STORAGE.water, 'water', 0, 100000, true);
+  validateDateMap(STORAGE.weights, 'weight', 20, 500);
+  try {
+    const raw = window.localStorage.getItem(STORAGE.profile);
+    if (raw !== null && !validateRemoteProfile(JSON.parse(raw))) errors.push('profile failed validation');
+  } catch { errors.push('profile storage could not be read as valid JSON'); }
+  try {
+    const raw = window.localStorage.getItem(STORAGE.waterGoal);
+    if (raw !== null && !boundedNumber(JSON.parse(raw), 100, 20000, true)) errors.push('water goal failed validation');
+  } catch { errors.push('water goal storage could not be read as valid JSON'); }
+  return errors;
+}
+
 function initials(name: string) {
   return name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase();
 }
@@ -256,8 +423,158 @@ function App() {
   const [prCelebration, setPrCelebration] = useState<{ set: WorkoutSet; oneRmRecord: boolean; weightRecord: boolean } | null>(null);
   const [storageError, setStorageError] = useState(false);
   const [currentDate, setCurrentDate] = useState(todayKey);
+  const [journalStorageVersion, setJournalStorageVersion] = useState(0);
   const paired = usePairedMovement();
   const liveWorkouts = useWorkoutSessions();
+  useEffect(() => {
+    const refresh = () => setJournalStorageVersion((version) => version + 1);
+    window.addEventListener('fitpulse:journal-storage-change', refresh);
+    window.addEventListener('storage', refresh);
+    return () => {
+      window.removeEventListener('fitpulse:journal-storage-change', refresh);
+      window.removeEventListener('storage', refresh);
+    };
+  }, []);
+
+  const applyJournalRecord = (record: JournalRecord): boolean => {
+    const data = record.data;
+    if (record.deleted) {
+      switch (record.entity) {
+        case 'meal': setMacros((items) => items.filter((item) => item.id !== record.id)); return true;
+        case 'strengthSet':
+          setWorkouts((items) => items.filter((item) => item.id !== record.id));
+          setCompletedWorkouts((items) => items.map((item) => ({ ...item, setIds: item.setIds.filter((id) => id !== record.id) }))
+            .filter((item) => item.setIds.length > 0));
+          return true;
+        case 'completedWorkout': setCompletedWorkouts((items) => items.filter((item) => item.id !== record.id)); return true;
+        case 'waterDay':
+          if (!validDateKey(record.id)) return false;
+          setWaterHistory((items) => { const next = { ...items }; delete next[record.id]; return next; }); return true;
+        case 'weightDay':
+          if (!validDateKey(record.id)) return false;
+          setWeightHistory((items) => { const next = { ...items }; delete next[record.id]; return next; }); return true;
+        case 'mealTemplate': {
+          try {
+            const next = readMealTemplates().filter((item) => item.id !== record.id);
+            window.localStorage.setItem(MEAL_TEMPLATE_STORAGE_KEY, JSON.stringify(next));
+            window.dispatchEvent(new Event('fitpulse:journal-storage-change'));
+            return true;
+          } catch { return false; }
+        }
+        case 'liveWorkoutHistory': {
+          const next = readWorkoutHistory().filter((session) => session.id !== record.id);
+          return liveWorkouts.replaceSessions(next);
+        }
+        default: return false;
+      }
+    }
+    if (!objectValue(data)) return false;
+    switch (record.entity) {
+      case 'meal': {
+        const item = validateRemoteMeal(data);
+        if (!item || item.id !== record.id) return false;
+        setMacros((items) => [item, ...items.filter((existing) => existing.id !== item.id)]);
+        return true;
+      }
+      case 'strengthSet': {
+        const item = validateRemoteSet(data);
+        if (!item || item.id !== record.id) return false;
+        setWorkouts((items) => [item, ...items.filter((existing) => existing.id !== item.id)]);
+        return true;
+      }
+      case 'completedWorkout': {
+        const item = validateRemoteCompletedWorkout(data);
+        if (!item || item.id !== record.id) return false;
+        setCompletedWorkouts((items) => [item, ...items.filter((existing) => existing.id !== item.id)]);
+        return true;
+      }
+      case 'waterDay': {
+        if (!validDateKey(record.id) || data.date !== record.id || !boundedNumber(data.amountMl, 0, 100000, true)) return false;
+        setWaterHistory((items) => ({ ...items, [record.id]: data.amountMl as number }));
+        return true;
+      }
+      case 'weightDay': {
+        if (!validDateKey(record.id) || data.date !== record.id || !boundedNumber(data.weightKg, 20, 500)) return false;
+        setWeightHistory((items) => ({ ...items, [record.id]: data.weightKg as number }));
+        return true;
+      }
+      case 'nutritionGoals': {
+        if (record.id !== 'nutrition-goals') return false;
+        const goals = validateRemoteGoals(data);
+        if (!goals) return false;
+        setProfile((profileValue) => ({ ...profileValue, ...goals }));
+        return true;
+      }
+      case 'profile': {
+        if (record.id !== 'profile') return false;
+        const next = validateRemoteProfile(data);
+        if (!next) return false;
+        setProfile(next);
+        return true;
+      }
+      case 'waterGoal':
+        if (record.id !== 'water-goal' || !boundedNumber(data.goalMl, 100, 20000, true)) return false;
+        setWaterGoal(data.goalMl as number);
+        return true;
+      case 'mealTemplate': {
+        const item = validateRemoteTemplate(data);
+        if (!item || item.id !== record.id) return false;
+        try {
+          const next = [...readMealTemplates().filter((existing) => existing.id !== item.id), item];
+          window.localStorage.setItem(MEAL_TEMPLATE_STORAGE_KEY, JSON.stringify(next));
+          window.dispatchEvent(new Event('fitpulse:journal-storage-change'));
+          return true;
+        } catch { return false; }
+      }
+      case 'liveWorkoutHistory': {
+        const adapted = adaptLiveWorkoutForWebsite(data);
+        if (!validWorkoutHistoryEntry(adapted) || adapted.id !== record.id) return false;
+        const next = [adapted as unknown as WorkoutHistoryEntry, ...readWorkoutHistory().filter((session) => session.id !== record.id)];
+        return liveWorkouts.replaceSessions(next);
+      }
+      default: return false;
+    }
+  };
+
+  const localJournalRecords: LocalJournalRecord[] = [
+    ...macros.map((item) => ({
+      entity: 'meal' as const, id: item.id, data: adaptLegacyWebMealToJournal({ ...item }),
+    })),
+    ...workouts.map((item) => ({
+      entity: 'strengthSet' as const, id: item.id, data: adaptLegacySetToJournal({ ...item }),
+    })),
+    ...completedWorkouts.map((item) => ({ entity: 'completedWorkout' as const, id: item.id, data: { ...item } })),
+    ...Object.entries(waterHistory).map(([date, amountMl]) => ({
+      entity: 'waterDay' as const, id: date, data: { date, amountMl },
+    })),
+    ...Object.entries(weightHistory).map(([date, weightKg]) => ({
+      entity: 'weightDay' as const, id: date, data: { date, weightKg },
+    })),
+    { entity: 'nutritionGoals' as const, id: 'nutrition-goals', data: {
+      calorieTarget: profile.calorieTarget, proteinTarget: profile.proteinTarget,
+      carbsTarget: profile.carbsTarget, fatTarget: profile.fatTarget,
+    }, pristineDefault: profile.calorieTarget === defaultProfile.calorieTarget &&
+      profile.proteinTarget === defaultProfile.proteinTarget && profile.carbsTarget === defaultProfile.carbsTarget &&
+      profile.fatTarget === defaultProfile.fatTarget },
+    { entity: 'profile' as const, id: 'profile', data: { ...profile }, pristineDefault: isDefaultProfile(profile) },
+    { entity: 'waterGoal' as const, id: 'water-goal', data: { goalMl: waterGoal } },
+    ...readMealTemplates().map((item) => ({
+      entity: 'mealTemplate' as const, id: item.id, data: adaptLegacyTemplateToJournal({ ...item }),
+    })),
+    ...liveWorkouts.sessions.map((item) => ({
+      entity: 'liveWorkoutHistory' as const, id: item.id, data: adaptLiveWorkoutToJournal({ ...item }),
+    })),
+  ];
+  const localJournalValidationErrors = readJournalValidationErrors();
+  const localJournalValidationRef = useRef(localJournalValidationErrors);
+  localJournalValidationRef.current = localJournalValidationErrors;
+  const journalSync = useJournalSync(
+    paired.key,
+    localJournalRecords,
+    applyJournalRecord,
+    `${journalStorageVersion}:${JSON.stringify(localJournalRecords)}`,
+    localJournalValidationErrors,
+  );
   const workoutStartedMotionRef = useRef(false);
   const recordSteps = (amount: number) => {
     const now = new Date();
@@ -313,15 +630,17 @@ function App() {
     try { window.localStorage.setItem(key, JSON.stringify(value)); }
     catch { setStorageError(true); }
   };
-  useEffect(() => { persist(STORAGE.profile, profile); }, [profile]);
-  useEffect(() => { persist(STORAGE.macros, macros); }, [macros]);
-  useEffect(() => { persist(STORAGE.workouts, workouts); }, [workouts]);
-  useEffect(() => { persist(STORAGE.completedWorkouts, completedWorkouts); }, [completedWorkouts]);
+  const canPersistJournalKey = (prefix: string) =>
+    !localJournalValidationRef.current.some((error) => error.startsWith(prefix));
+  useEffect(() => { if (canPersistJournalKey('profile ')) persist(STORAGE.profile, profile); }, [profile]);
+  useEffect(() => { if (canPersistJournalKey('meal ')) persist(STORAGE.macros, macros); }, [macros]);
+  useEffect(() => { if (canPersistJournalKey('strength set ')) persist(STORAGE.workouts, workouts); }, [workouts]);
+  useEffect(() => { if (canPersistJournalKey('completed workout ')) persist(STORAGE.completedWorkouts, completedWorkouts); }, [completedWorkouts]);
   useEffect(() => { persist(STORAGE.steps, steps); }, [steps]);
   useEffect(() => { persist(STORAGE.stepHours, stepHours); }, [stepHours]);
-  useEffect(() => { persist(STORAGE.water, waterHistory); }, [waterHistory]);
-  useEffect(() => { persist(STORAGE.weights, weightHistory); }, [weightHistory]);
-  useEffect(() => { persist(STORAGE.waterGoal, waterGoal); }, [waterGoal]);
+  useEffect(() => { if (canPersistJournalKey('water ')) persist(STORAGE.water, waterHistory); }, [waterHistory]);
+  useEffect(() => { if (canPersistJournalKey('weight ')) persist(STORAGE.weights, weightHistory); }, [weightHistory]);
+  useEffect(() => { if (canPersistJournalKey('water goal ')) persist(STORAGE.waterGoal, waterGoal); }, [waterGoal]);
   useEffect(() => { persist(STORAGE.strideOverride, strideOverrideCm); }, [strideOverrideCm]);
   useEffect(() => {
     if (!toast) return undefined;
@@ -537,6 +856,9 @@ function App() {
                 pairedKey={paired.key}
                 pairedError={paired.error}
                 pairedBusy={paired.busy || paired.loading}
+                journalStatus={journalSync.status}
+                journalMessage={journalSync.message}
+                journalConflictCount={journalSync.conflictCount}
                 onPair={() => paired.pair(profile.stepTarget, strideCm, profile.weight)}
                 motionStatus={motion.status}
                 storageError={storageError || motion.storageError}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { adaptLiveWorkoutForWebsite } from './journalSyncCore';
 
 export type WorkoutKind = 'outdoor-walk' | 'indoor-walk' | 'strength';
 export type WorkoutHistoryEntry = {
@@ -26,24 +27,41 @@ type ActiveWorkout = {
 };
 type Countdown = { kind: WorkoutKind; endsAt: number; strideCm: number; weightKg: number };
 
-const HISTORY_KEY = 'fitpulse-workout-sessions';
+export const WORKOUT_HISTORY_STORAGE_KEY = 'fitpulse-workout-sessions';
 const DRAFT_KEY = 'fitpulse-active-workout';
 const isKind = (kind: unknown): kind is WorkoutKind =>
   kind === 'outdoor-walk' || kind === 'indoor-walk' || kind === 'strength';
 
-function readHistory(): WorkoutHistoryEntry[] {
+export function validWorkoutHistoryEntry(entry: unknown): entry is WorkoutHistoryEntry {
+  if (!entry || typeof entry !== 'object') return false;
+  const item = entry as Partial<WorkoutHistoryEntry>;
+  return typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 && isKind(item.kind) &&
+    Number.isSafeInteger(item.startedAt) && item.startedAt! >= 0 &&
+    Number.isSafeInteger(item.endedAt) && item.endedAt! >= item.startedAt! &&
+    Number.isSafeInteger(item.durationMs) && item.durationMs! >= 0 &&
+    Number.isSafeInteger(item.steps) && item.steps! >= 0 &&
+    (item.distanceMeters === null || (Number.isFinite(item.distanceMeters) && item.distanceMeters! >= 0)) &&
+    (item.activeCalories === null || (Number.isFinite(item.activeCalories) && item.activeCalories! >= 0)) &&
+    (item.totalCalories === null || (Number.isFinite(item.totalCalories) && item.totalCalories! >= 0));
+}
+
+export function readWorkoutHistory(): WorkoutHistoryEntry[] {
   try {
-    const value: unknown = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]');
+    const value: unknown = JSON.parse(localStorage.getItem(WORKOUT_HISTORY_STORAGE_KEY) ?? '[]');
     if (!Array.isArray(value)) return [];
-    return value.filter((entry): entry is WorkoutHistoryEntry =>
-      !!entry && typeof entry.id === 'string' && isKind(entry.kind) &&
-      Number.isFinite(entry.startedAt) && Number.isFinite(entry.endedAt) &&
-      Number.isFinite(entry.durationMs) && entry.durationMs >= 0 &&
-      Number.isSafeInteger(entry.steps) && entry.steps >= 0 &&
-      (entry.distanceMeters === null || (Number.isFinite(entry.distanceMeters) && entry.distanceMeters >= 0)) &&
-      (entry.activeCalories === null || Number.isFinite(entry.activeCalories)) &&
-      (entry.totalCalories === null || Number.isFinite(entry.totalCalories)));
+    return value.map((entry) => entry && typeof entry === 'object' && !Array.isArray(entry)
+      ? adaptLiveWorkoutForWebsite(entry as Record<string, unknown>) : entry)
+      .filter(validWorkoutHistoryEntry);
   } catch { return []; }
+}
+
+function storedWorkoutHistoryIsValid(): boolean {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(WORKOUT_HISTORY_STORAGE_KEY) ?? '[]');
+    return Array.isArray(value) && value.every((entry) =>
+      !!entry && typeof entry === 'object' && !Array.isArray(entry) &&
+      validWorkoutHistoryEntry(adaptLiveWorkoutForWebsite(entry as Record<string, unknown>)));
+  } catch { return false; }
 }
 
 function readDraft(): ActiveWorkout | null {
@@ -87,7 +105,7 @@ export function workoutMetrics(workout: Pick<ActiveWorkout, 'kind' | 'steps' | '
 }
 
 export function useWorkoutSessions() {
-  const [sessions, setSessions] = useState<WorkoutHistoryEntry[]>(readHistory);
+  const [sessions, setSessions] = useState<WorkoutHistoryEntry[]>(readWorkoutHistory);
   const [active, setActive] = useState<ActiveWorkout | null>(readDraft);
   const activeRef = useRef(active);
   const [countdown, setCountdown] = useState<Countdown | null>(null);
@@ -110,6 +128,14 @@ export function useWorkoutSessions() {
       try { localStorage.setItem(DRAFT_KEY, JSON.stringify(activeRef.current)); }
       catch { setError('This browser could not save your workout. Enable local storage before ending it.'); }
     }
+  }, []);
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === WORKOUT_HISTORY_STORAGE_KEY || event.key === null) setSessions(readWorkoutHistory());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   useEffect(() => {
@@ -191,6 +217,10 @@ export function useWorkoutSessions() {
   const end = () => {
     const current = activeRef.current;
     if (!current) return false;
+    if (!storedWorkoutHistoryIsValid()) {
+      setError('Workout history contains invalid data. Existing history was left untouched.');
+      return false;
+    }
     const endedAt = Date.now();
     const durationMs = current.elapsedMs +
       (current.runningSince !== null ? Math.max(0, endedAt - current.runningSince) : 0);
@@ -203,7 +233,7 @@ export function useWorkoutSessions() {
     };
     const next = [completed, ...sessions];
     try {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+      localStorage.setItem(WORKOUT_HISTORY_STORAGE_KEY, JSON.stringify(next));
       localStorage.removeItem(DRAFT_KEY);
       setSessions(next);
       activeRef.current = null;
@@ -216,8 +246,25 @@ export function useWorkoutSessions() {
     }
   };
 
+  const replaceSessions = (next: WorkoutHistoryEntry[]) => {
+    if (!storedWorkoutHistoryIsValid()) {
+      setError('Workout history contains invalid data. Existing history was left untouched.');
+      return false;
+    }
+    try {
+      localStorage.setItem(WORKOUT_HISTORY_STORAGE_KEY, JSON.stringify(next));
+      setSessions(next);
+      window.dispatchEvent(new Event('fitpulse:journal-storage-change'));
+      setError('');
+      return true;
+    } catch {
+      setError('Workout history could not be synced to this browser. Check storage permissions.');
+      return false;
+    }
+  };
+
   return {
-    active, sessions, countdown, error, elapsedMs, recordStep, markSensorReady, start, pause, resume, end,
+    active, sessions, countdown, error, elapsedMs, recordStep, markSensorReady, start, pause, resume, end, replaceSessions,
     cancelCountdown: () => setCountdown(null),
     countdownNumber: countdown ? Math.max(1, Math.ceil((countdown.endsAt - now) / 1000)) : 0,
   };

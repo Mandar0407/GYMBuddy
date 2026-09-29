@@ -3,6 +3,8 @@ import { Feather } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useColors } from '@/hooks/useColors';
+import { useFitness } from '@/providers/FitnessProvider';
+import { withJournalStorageLock } from '@/providers/journalStorageLock';
 
 type MealType = 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack';
 type Template = {
@@ -58,6 +60,7 @@ function Field({ label, value, onChange, colors, placeholder, testID }: {
 
 export default function MealTemplates({ onLog }: Props) {
   const colors = useColors();
+  const { journalSyncStatus, syncJournal } = useFitness();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loadReady, setLoadReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -89,13 +92,43 @@ export default function MealTemplates({ onLog }: Props) {
     return () => { mounted = false; };
   }, []);
 
+  useEffect(() => {
+    if (journalSyncStatus !== 'synced' || !loadReady || busy) return;
+    let mounted = true;
+    void AsyncStorage.getItem(STORAGE_KEY).then((saved) => {
+      if (!mounted) return;
+      const parsed: unknown = saved ? JSON.parse(saved) : [];
+      if (!Array.isArray(parsed) || !parsed.every(validTemplate)) {
+        throw new Error('Synced meal templates could not be read safely.');
+      }
+      setTemplates(parsed.map((item: Template) => ({ ...item, name: cleanName(item.name) })));
+    }).catch(() => {
+      if (mounted) setError('Synced meal templates could not be refreshed; your current list was kept.');
+    });
+    return () => { mounted = false; };
+  }, [journalSyncStatus, loadReady, busy]);
+
   const persist = async (next: Template[]) => {
     if (!loadReady || busy) return false;
     setBusy(true);
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      setTemplates(next);
+      const merged = await withJournalStorageLock(async () => {
+        const saved = await AsyncStorage.getItem(STORAGE_KEY);
+        const latest: unknown = saved ? JSON.parse(saved) : [];
+        if (!Array.isArray(latest) || !latest.every(validTemplate)) {
+          throw new Error('Saved meal templates are invalid. Existing data was not changed.');
+        }
+        const priorIds = new Set(templates.map(item => item.id));
+        const nextIds = new Set(next.map(item => item.id));
+        const additions = next.filter(item => !priorIds.has(item.id));
+        const removals = new Set(templates.filter(item => !nextIds.has(item.id)).map(item => item.id));
+        const result = [...latest.filter((item: Template) => !removals.has(item.id)), ...additions];
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(result));
+        return result;
+      });
+      setTemplates(merged);
       setError('');
+      void syncJournal();
       return true;
     } catch (writeError) {
       setError(`Meal templates could not be saved. Your saved meals are unchanged. ${writeError instanceof Error ? writeError.message : String(writeError)}`);

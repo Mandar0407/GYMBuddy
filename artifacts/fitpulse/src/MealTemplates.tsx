@@ -1,28 +1,37 @@
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import './meal-templates.css';
 import { plainText } from './inputSafety';
 
-type Template = { id: string; name: string; calories: number; protein: number; carbs: number; fat: number };
-const KEY = 'fitpulse-meal-templates';
+export type Template = { id: string; name: string; calories: number; protein: number; carbs: number; fat: number; meal?: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack' };
+export const MEAL_TEMPLATE_STORAGE_KEY = 'fitpulse-meal-templates';
 
-function validTemplate(value: unknown): value is Template {
+export function validMealTemplate(value: unknown): value is Template {
   if (!value || typeof value !== 'object') return false;
   const item = value as Partial<Template>;
-  return typeof item.id === 'string' && typeof item.name === 'string' && plainText(item.name, 60).length > 0 &&
+  return typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 &&
+    typeof item.name === 'string' && item.name.length <= 60 && plainText(item.name, 60).length > 0 &&
     typeof item.calories === 'number' && Number.isFinite(item.calories) && item.calories > 0 && item.calories <= 10000 &&
-    (['protein', 'carbs', 'fat'] as const).every((key) => typeof item[key] === 'number' && Number.isFinite(item[key]) && item[key]! >= 0 && item[key]! <= 1000);
+    (['protein', 'carbs', 'fat'] as const).every((key) => typeof item[key] === 'number' && Number.isFinite(item[key]) && item[key]! >= 0 && item[key]! <= 1000) &&
+    (item.meal === undefined || ['Breakfast', 'Lunch', 'Dinner', 'Snack'].includes(item.meal));
 }
 
-function readTemplates(): Template[] {
+export function readMealTemplates(): Template[] {
   try {
-    const saved: unknown = JSON.parse(window.localStorage.getItem(KEY) ?? '[]');
-    return Array.isArray(saved) ? saved.filter(validTemplate).map((item) => ({ ...item, name: plainText(item.name, 60) })) : [];
+    const saved: unknown = JSON.parse(window.localStorage.getItem(MEAL_TEMPLATE_STORAGE_KEY) ?? '[]');
+    return Array.isArray(saved) ? saved.filter(validMealTemplate).map((item) => ({ ...item, name: plainText(item.name, 60) })) : [];
   } catch { return []; }
 }
 
+function mealTemplateStorageIsValid(): boolean {
+  try {
+    const saved: unknown = JSON.parse(window.localStorage.getItem(MEAL_TEMPLATE_STORAGE_KEY) ?? '[]');
+    return Array.isArray(saved) && saved.every(validMealTemplate);
+  } catch { return false; }
+}
+
 export default function MealTemplates({ onLog }: { onLog: (template: Template) => void }) {
-  const [templates, setTemplates] = useState<Template[]>(readTemplates);
+  const [templates, setTemplates] = useState<Template[]>(readMealTemplates);
   const [name, setName] = useState('');
   const [calories, setCalories] = useState('');
   const [protein, setProtein] = useState('');
@@ -33,6 +42,10 @@ export default function MealTemplates({ onLog }: { onLog: (template: Template) =
 
   const save = (event: FormEvent) => {
     event.preventDefault();
+    if (!mealTemplateStorageIsValid()) {
+      setError('Saved meal templates contain invalid data. Existing templates were left untouched.');
+      return;
+    }
     const values = [calories, protein, carbs, fat].map(Number);
     const safeName = plainText(name, 60);
     if (!safeName || [calories, protein, carbs, fat].some((value) => value.trim() === '') ||
@@ -46,8 +59,9 @@ export default function MealTemplates({ onLog }: { onLog: (template: Template) =
       protein: values[1], carbs: values[2], fat: values[3],
     }];
     try {
-      window.localStorage.setItem(KEY, JSON.stringify(next));
+      window.localStorage.setItem(MEAL_TEMPLATE_STORAGE_KEY, JSON.stringify(next));
       setTemplates(next);
+      window.dispatchEvent(new Event('fitpulse:journal-storage-change'));
       setName(''); setCalories(''); setProtein(''); setCarbs(''); setFat('');
       setError('');
       setShowForm(false);
@@ -56,13 +70,31 @@ export default function MealTemplates({ onLog }: { onLog: (template: Template) =
 
   const remove = (id: string) => {
     if (!window.confirm('Delete this saved meal template? Your meal log will not be changed.')) return;
+    if (!mealTemplateStorageIsValid()) {
+      setError('Saved meal templates contain invalid data. Existing templates were left untouched.');
+      return;
+    }
     const next = templates.filter((item) => item.id !== id);
     try {
-      window.localStorage.setItem(KEY, JSON.stringify(next));
+      window.localStorage.setItem(MEAL_TEMPLATE_STORAGE_KEY, JSON.stringify(next));
       setTemplates(next);
+      window.dispatchEvent(new Event('fitpulse:journal-storage-change'));
       setError('');
     } catch { setError('Could not delete the template because browser storage is unavailable.'); }
   };
+
+  useEffect(() => {
+    const reload = () => setTemplates(readMealTemplates());
+    window.addEventListener('fitpulse:journal-storage-change', reload);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === MEAL_TEMPLATE_STORAGE_KEY || event.key === null) reload();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('fitpulse:journal-storage-change', reload);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
 
   return (
     <div className="meal-templates" data-testid="section-meal-templates">
