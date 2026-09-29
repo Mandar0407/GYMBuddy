@@ -1,31 +1,38 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet,
+  ActivityIndicator, Alert, AppState, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet,
   Text, TextInput, View,
 } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   getMovement, putMovementNative, useGetMovement, useAddMovementManual,
-  usePutMovementSettings, getGetMovementQueryKey,
+  usePutMovementSettings, useResetMovementManual, getGetMovementQueryKey,
 } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
+import FitnessApp from '@/components/FitnessApp';
+import { useFitness, type MovementSummary } from '@/providers/FitnessProvider';
 
 const PAIR_KEY = 'fitpulsePairKey';
+const readPairKey = () => Platform.OS === 'web' ? AsyncStorage.getItem(PAIR_KEY) : SecureStore.getItemAsync(PAIR_KEY);
+const savePairKey = (value: string) => Platform.OS === 'web' ? AsyncStorage.setItem(PAIR_KEY, value) : SecureStore.setItemAsync(PAIR_KEY, value);
 const blank = () => Array(24).fill(0) as number[];
 const total = (hours: number[]) => hours.reduce((sum, count) => sum + count, 0);
 const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 type SensorState = 'checking' | 'needs-permission' | 'denied' | 'unavailable' | 'reading' | 'ready' | 'error';
 type NativeDay = { date: string; hours: number[] };
+type MobileMovementSummary = MovementSummary & { paired: boolean };
 
-export default function MovementScreen() {
+function MovementScreen({ embedded, onSummaryChange }: { embedded?: boolean; onSummaryChange?: (summary: MobileMovementSummary) => void }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const fitness = useFitness();
   const [key, setKey] = useState('');
   const [pairInput, setPairInput] = useState('');
   const [pairError, setPairError] = useState('');
@@ -35,12 +42,13 @@ export default function MovementScreen() {
   const [syncError, setSyncError] = useState('');
   const [manualInput, setManualInput] = useState('');
   const [message, setMessage] = useState('');
-  const [goalInput, setGoalInput] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const autoReadKey = useRef<string | null>(null);
   const request = { headers: { Authorization: `Bearer ${key}` } };
   const movement = useGetMovement({ query: { queryKey: [...getGetMovementQueryKey(), key], enabled: !!key, retry: false, refetchOnWindowFocus: true, refetchInterval: 45_000 }, request });
   const addManual = useAddMovementManual({ request });
+  const resetManual = useResetMovementManual({ request });
   const saveSettings = usePutMovementSettings({ request });
   const refreshRemote = () => queryClient.invalidateQueries({ queryKey: getGetMovementQueryKey() });
   const today = dateKey(new Date());
@@ -50,9 +58,11 @@ export default function MovementScreen() {
   const manualHours = remoteToday?.manualHours ?? blank();
   const hourly = nativeHours.map((value, index) => value + manualHours[index]);
   const steps = total(hourly);
-  const goal = movement.data?.goal ?? 10000;
-  const stride = movement.data?.strideCm ?? 74;
-  const weight = movement.data?.weightKg ?? 68;
+  const paired = !!key && !!movement.data;
+  const goal = paired ? movement.data!.goal : fitness.profile.stepTarget;
+  const autoStride = Math.round(fitness.profile.height * 0.415);
+  const stride = movement.data?.strideCm ?? autoStride;
+  const weight = movement.data?.weightKg ?? fitness.profile.weight;
   const progress = Math.min(100, Math.round(steps / goal * 100));
   const distance = steps * stride / 100000;
   const week = Array.from({ length: 7 }, (_, index) => {
@@ -63,10 +73,25 @@ export default function MovementScreen() {
     const remote = movement.data?.days.find((item) => item.date === day);
     const local = nativeDays.find((item) => item.date === day);
     return {
+      date: day,
+      known: !!(remote || local),
       label: new Intl.DateTimeFormat('en', { weekday: 'short' }).format(date),
       value: total(local?.hours ?? remote?.nativeHours ?? blank()) + total(remote?.manualHours ?? blank()),
     };
   });
+  const history = new Map<string, number>();
+  movement.data?.days.forEach((day) => {
+    history.set(day.date, total(day.nativeHours ?? blank()) + total(day.manualHours));
+  });
+  nativeDays.forEach((day) => {
+    const remote = movement.data?.days.find((item) => item.date === day.date);
+    history.set(day.date, total(day.hours) + total(remote?.manualHours ?? blank()));
+  });
+  const historySignature = [...history].map(([date, count]) => `${date}:${count}`).join('|');
+
+  useEffect(() => {
+    onSummaryChange?.({ steps, goal, paired, week: [...history].map(([date, count]) => ({ date, steps: count })) });
+  }, [steps, goal, paired, historySignature, onSummaryChange]);
 
   const readHistory = useCallback(async (pairKey: string) => {
     if (Platform.OS !== 'ios') return;
@@ -114,7 +139,7 @@ export default function MovementScreen() {
 
   useEffect(() => {
     let alive = true;
-    SecureStore.getItemAsync(PAIR_KEY).then((saved) => { if (alive && saved) setKey(saved); })
+    readPairKey().then((saved) => { if (alive && saved) setKey(saved); })
       .catch(() => { if (alive) setPairError('Could not read the saved pairing key.'); });
     if (Platform.OS === 'ios') {
       import('expo-sensors').then(async ({ Pedometer }) => {
@@ -159,10 +184,10 @@ export default function MovementScreen() {
     setSaving(true); setPairError('');
     try {
       await getMovement({ headers: { Authorization: `Bearer ${next}` } });
-      await SecureStore.setItemAsync(PAIR_KEY, next);
+      await savePairKey(next);
       setKey(next); setPairInput('');
       setMessage('Connected to your GYM Buddy Movement page.');
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (Platform.OS !== 'web') await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch { setPairError('Key not found or server unavailable. Check the key and connection.'); }
     finally { setSaving(false); }
   };
@@ -178,15 +203,55 @@ export default function MovementScreen() {
     } catch { setMessage('Manual steps were not saved. Try again.'); }
     finally { setSaving(false); }
   };
-  const setGoal = async () => {
-    const value = Number(goalInput);
-    if (!Number.isSafeInteger(value) || value < 1000 || value > 100000) { setMessage('Goal must be 1,000–100,000 steps.'); return; }
+  const clearManual = async () => {
+    if (!key) return;
     setSaving(true);
+    setMessage('');
     try {
-      await saveSettings.mutateAsync({ data: { goal: value, strideCm: stride, weightKg: weight } });
-      await refreshRemote(); setGoalInput(''); setMessage('Daily goal updated on both devices.');
-    } catch { setMessage('Goal could not be saved. Try again.'); }
+      await resetManual.mutateAsync({ date: today });
+      await refreshRemote();
+      setMessage('Today’s manual steps were cleared. Phone history was kept.');
+    } catch { setMessage('Manual steps could not be cleared. Phone history was not changed. Try again.'); }
     finally { setSaving(false); }
+  };
+  const confirmClearManual = () => {
+    if (Platform.OS === 'web') {
+      if (window.confirm('Clear all manually added steps for today? Recorded phone history will be kept.')) void clearManual();
+      return;
+    }
+    Alert.alert('Clear manual steps?', 'This removes manually added steps for today only. Recorded phone history is kept.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Clear manual steps', style: 'destructive', onPress: () => void clearManual() },
+    ]);
+  };
+  const saveMovementSettings = async (next: { goal: number; weight: number; height: number; stride: number }) => {
+    setSaving(true);
+    setMessage('');
+    try {
+      const profileUpdate = await fitness.applyPlan({
+        weight: next.weight,
+        height: next.height,
+        ...(!key ? { stepTarget: next.goal } : {}),
+      });
+      if (!profileUpdate) return 'Profile settings could not be saved on this device. Paired movement settings were not changed.';
+      if (key) {
+        try {
+          await saveSettings.mutateAsync({ data: { goal: next.goal, strideCm: next.stride, weightKg: next.weight } });
+          await refreshRemote();
+        } catch {
+          return 'Your weight and height were saved on this device, but paired goal/stride settings were not saved. Try saving again.';
+        }
+        const localGoalSaved = await fitness.applyPlan({ stepTarget: next.goal });
+        if (!localGoalSaved) {
+          return 'Paired goal and stride settings were saved, but the daily goal in this device profile could not be updated.';
+        }
+      }
+      setMessage('Movement settings saved.');
+      setSettingsOpen(false);
+      return '';
+    } finally {
+      setSaving(false);
+    }
   };
   const button = (label: string, action: () => void, testID: string, subdued = false) => (
     <Pressable testID={testID} onPress={action} disabled={saving} style={({ pressed }) => [
@@ -201,10 +266,10 @@ export default function MovementScreen() {
 
   return (
     <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={[styles.content, {
-      paddingTop: Platform.OS === 'web' ? 67 : insets.top + 18,
+      paddingTop: embedded ? 22 : Platform.OS === 'web' ? 67 : insets.top + 18,
       paddingBottom: Platform.OS === 'web' ? 40 : insets.bottom + 32,
     }]}>
-      <View style={styles.brand}><View style={[styles.brandMark, { backgroundColor: colors.primary }]}><MaterialCommunityIcons name="dumbbell" size={20} color={colors.primaryForeground} /></View><Text style={[styles.brandText, { color: colors.foreground }]}>GYM Buddy</Text><Text style={[styles.brandSide, { color: colors.mutedForeground }]}>MOVEMENT</Text></View>
+      {!embedded && <View style={styles.brand}><View style={[styles.brandMark, { backgroundColor: colors.primary }]}><MaterialCommunityIcons name="dumbbell" size={20} color={colors.primaryForeground} /></View><Text style={[styles.brandText, { color: colors.foreground }]}>GYM Buddy</Text><Text style={[styles.brandSide, { color: colors.mutedForeground }]}>MOVEMENT</Text></View>}
       <Text style={[styles.eyebrow, { color: colors.secondaryForeground }]}>MOVEMENT · TODAY</Text>
       <Text style={[styles.title, { color: colors.foreground }]}>Take the{'\n'}long way.</Text>
       <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Steps are a gentle vote for more energy.</Text>
@@ -230,7 +295,7 @@ export default function MovementScreen() {
             {sensor === 'error' && button('Try reading again', () => void readHistory(key), 'retry-steps')}
             {sensor === 'ready' && button('Refresh phone steps', () => void readHistory(key), 'refresh-steps', true)}
           </>
-        ) : <Text style={[styles.description, { color: colors.mutedForeground }]}>{Platform.OS === 'android' ? 'Android Expo pedometer cannot recover steps after the app was backgrounded or the screen was locked. Native background history is unavailable here; manual entries still sync when paired.' : 'Step history requires a physical iPhone. This preview does not report sensor steps.'}</Text>}
+        ) : <Text style={[styles.description, { color: colors.mutedForeground }]}>{Platform.OS === 'android' ? 'Android limitation: this version does not read Android step-sensor history or recover steps recorded while the app is backgrounded or the screen is locked. Manual entries still sync when paired.' : 'Browser limitation: a browser has no access to native phone step history, so this preview does not report sensor steps. You can still add manual steps; use the iOS app for supported iPhone history.'}</Text>}
         {!!syncError && <Text style={{ color: colors.destructive }}>{syncError}</Text>}
       </>)}
       {card(<>
@@ -254,17 +319,121 @@ export default function MovementScreen() {
         <View style={styles.chart}>{week.map((day, index) => <View key={index} style={styles.column}><Text style={{ fontSize: 10, color: colors.mutedForeground }}>{day.value ? day.value >= 1000 ? `${(day.value / 1000).toFixed(1)}k` : day.value : '—'}</Text><View style={[styles.bar, { backgroundColor: index === 6 ? colors.primary : colors.accent, height: Math.max(2, Math.min(82, day.value / Math.max(goal, ...week.map((d) => d.value), 1) * 82)) }]} /><Text style={{ fontSize: 10, color: colors.mutedForeground }}>{day.label}</Text></View>)}</View>
       </>)}
       {card(<>
-        <Text style={[styles.heading, { color: colors.foreground }]}>Quick add</Text>
+        <View style={styles.split}><Text style={[styles.heading, { color: colors.foreground }]}>Quick add</Text><Pressable testID="clear-manual-steps" accessibilityHint="Available after pairing and adding manual steps" disabled={!key || saving || total(manualHours) === 0} onPress={confirmClearManual} style={[styles.resetButton, { borderColor: colors.destructive, opacity: !key || saving || total(manualHours) === 0 ? 0.45 : 1 }]}><Feather name="rotate-ccw" size={15} color={colors.destructive} /><Text style={{ color: colors.destructive, fontWeight: '700', fontSize: 12 }}>Clear manual</Text></Pressable></View>
         <View style={styles.quick}>{[500, 1000, 2500].map((amount) => <Pressable key={amount} testID={`add-${amount}`} disabled={!key || saving} onPress={() => void add(amount)} style={[styles.quickButton, { backgroundColor: colors.secondary, opacity: !key ? 0.5 : 1 }]}><Text style={{ color: colors.secondaryForeground, fontWeight: '700' }}>+{amount.toLocaleString()}</Text></Pressable>)}</View>
         <View style={styles.row}><TextInput testID="manual-input" value={manualInput} onChangeText={setManualInput} keyboardType="number-pad" placeholder="Custom steps" placeholderTextColor={colors.mutedForeground} style={[styles.input, { borderColor: colors.border, color: colors.foreground, flex: 1 }]} /><Pressable testID="add-custom" disabled={!key || saving} onPress={() => void add(Number(manualInput))} style={[styles.addIcon, { backgroundColor: colors.primary, opacity: !key ? 0.5 : 1 }]}><Feather name="plus" size={22} color={colors.primaryForeground} /></Pressable></View>
         <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>Manual steps are separate from phone history and sync to the web.</Text>
       </>)}
-      {!!key && card(<>
-        <Text style={[styles.heading, { color: colors.foreground }]}>Daily goal</Text>
-        <View style={styles.row}><TextInput testID="goal-input" value={goalInput} onChangeText={setGoalInput} keyboardType="number-pad" placeholder={String(goal)} placeholderTextColor={colors.mutedForeground} style={[styles.input, { borderColor: colors.border, color: colors.foreground, flex: 1 }]} />{button('Save goal', () => void setGoal(), 'save-goal', true)}</View>
+      {card(<>
+        <View style={styles.split}><View><Text style={[styles.heading, { color: colors.foreground }]}>Movement settings</Text><Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 4 }}>Goal, body measurements and stride estimate</Text></View>{button('Edit settings', () => setSettingsOpen(true), 'edit-movement-settings', true)}</View>
       </>)}
-      {!!message && <Text accessibilityRole="alert" style={{ color: colors.secondaryForeground }}>{message}</Text>}
+      {!!message && <Text accessibilityRole="alert" style={{ color: /could not|not saved|not changed|failed/i.test(message) ? colors.destructive : colors.secondaryForeground }}>{message}</Text>}
+      {settingsOpen && <MovementSettingsModal
+        goal={goal}
+        weight={weight}
+        height={fitness.profile.height}
+        stride={stride}
+        saving={saving}
+        paired={!!key}
+        colors={colors}
+        onClose={() => setSettingsOpen(false)}
+        onSave={saveMovementSettings}
+      />}
     </ScrollView>
+  );
+}
+
+function MovementSettingsModal({ goal, weight, height, stride, saving, paired, colors, onClose, onSave }: {
+  goal: number;
+  weight: number;
+  height: number;
+  stride: number;
+  saving: boolean;
+  paired: boolean;
+  colors: ReturnType<typeof useColors>;
+  onClose: () => void;
+  onSave: (settings: { goal: number; weight: number; height: number; stride: number }) => Promise<string>;
+}) {
+  const [goalValue, setGoalValue] = useState(String(goal));
+  const [weightValue, setWeightValue] = useState(String(weight));
+  const [heightValue, setHeightValue] = useState(String(height));
+  const auto = Math.round(Number(heightValue) * 0.415);
+  const [strideOverride, setStrideOverride] = useState<string | null>(
+    Math.round(height * 0.415) === stride ? null : String(stride)
+  );
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const visibleStride = strideOverride ?? (Number.isFinite(auto) ? String(auto) : '');
+  const save = async () => {
+    const nextGoal = Number(goalValue);
+    const nextWeight = Number(weightValue);
+    const nextHeight = Number(heightValue);
+    const nextStride = Number(visibleStride);
+    if (!Number.isSafeInteger(nextGoal) || nextGoal < 1000 || nextGoal > 100000 ||
+      !Number.isFinite(nextWeight) || nextWeight < 20 || nextWeight > 500 ||
+      !Number.isFinite(nextHeight) || nextHeight < 100 || nextHeight > 230 ||
+      !Number.isFinite(nextStride) || nextStride < 30 || nextStride > 150) {
+      setError('Use a goal of 1,000–100,000 whole steps, weight of 20–500 kg, height of 100–230 cm, and stride of 30–150 cm.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const result = await onSave({ goal: nextGoal, weight: nextWeight, height: nextHeight, stride: nextStride });
+      if (result) setError(result);
+    } catch {
+      setError('Settings could not be saved. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const field = (label: string, value: string, onChangeText: (value: string) => void, testID: string, keyboardType: 'number-pad' | 'decimal-pad' = 'decimal-pad') => (
+    <View style={styles.settingField}>
+      <Text style={{ color: colors.foreground, fontWeight: '600', fontSize: 13 }}>{label}</Text>
+      <TextInput testID={testID} value={value} onChangeText={(next) => { onChangeText(next); setError(''); }} keyboardType={keyboardType} selectTextOnFocus style={[styles.input, { borderColor: colors.border, color: colors.foreground }]} />
+    </View>
+  );
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <View style={[styles.modalBackdrop, { backgroundColor: 'rgba(0,0,0,0.45)' }]}>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalScroll}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.split}><Text style={[styles.heading, { color: colors.foreground }]}>Movement settings</Text><Pressable accessibilityLabel="Close movement settings" testID="close-movement-settings" onPress={onClose}><Feather name="x" size={22} color={colors.foreground} /></Pressable></View>
+            <Text style={[styles.description, { color: colors.mutedForeground }]}>Personalize your daily target and movement estimates. {paired ? 'Your goal and stride sync to paired devices.' : 'Your goal is saved to this device until paired.'}</Text>
+            {field('Daily step goal', goalValue, setGoalValue, 'movement-goal-input', 'number-pad')}
+            {field('Body weight (kg)', weightValue, setWeightValue, 'movement-weight-input')}
+            {field('Height (cm)', heightValue, (value) => {
+              setHeightValue(value);
+              if (strideOverride === null) setStrideOverride(null);
+            }, 'movement-height-input')}
+            {field('Stride length (cm)', visibleStride, setStrideOverride, 'movement-stride-input')}
+            <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>Auto stride uses height × 0.415 ({Number.isFinite(auto) ? auto : '—'} cm). Distance uses stride and estimated active energy also uses body weight.</Text>
+            <Pressable testID="reset-stride-auto" disabled={busy || saving} onPress={() => { setStrideOverride(null); setError(''); }} style={[styles.resetButton, { borderColor: colors.border, alignSelf: 'flex-start', opacity: busy || saving ? 0.5 : 1 }]}><Feather name="rotate-ccw" size={15} color={colors.foreground} /><Text style={{ color: colors.foreground, fontWeight: '700', fontSize: 12 }}>Reset stride to Auto</Text></Pressable>
+            {!!error && <Text accessibilityRole="alert" style={{ color: colors.destructive }}>{error}</Text>}
+            <View style={styles.row}>
+              <Pressable testID="cancel-movement-settings" onPress={onClose} disabled={busy || saving} style={[styles.button, { backgroundColor: colors.secondary, flex: 1 }]}><Text style={[styles.buttonText, { color: colors.secondaryForeground }]}>Cancel</Text></Pressable>
+              <Pressable testID="save-movement-settings" onPress={() => void save()} disabled={busy || saving} style={[styles.button, { backgroundColor: colors.primary, flex: 1, opacity: busy || saving ? 0.6 : 1 }]}><Text style={[styles.buttonText, { color: colors.primaryForeground }]}>{busy || saving ? 'Saving…' : 'Save settings'}</Text></Pressable>
+            </View>
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+export default function Home() {
+  const [movementSummary, setMovementSummary] = useState<MobileMovementSummary>({ steps: 0, goal: 10000, paired: false, week: [] });
+  const onSummaryChange = useCallback((next: MobileMovementSummary) => {
+    setMovementSummary((previous) =>
+      previous.steps === next.steps && previous.goal === next.goal && previous.paired === next.paired &&
+      JSON.stringify(previous.week) === JSON.stringify(next.week) ? previous : next
+    );
+  }, []);
+  return (
+    <FitnessApp
+      movementSummary={movementSummary}
+      movementScreen={<MovementScreen embedded onSummaryChange={onSummaryChange} />}
+    />
   );
 }
 
@@ -297,4 +466,9 @@ const styles = StyleSheet.create({
   quick: { flexDirection: 'row', gap: 8 },
   quickButton: { flex: 1, paddingVertical: 11, borderRadius: 11, alignItems: 'center' },
   addIcon: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  resetButton: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
+  settingField: { gap: 7 },
+  modalBackdrop: { flex: 1, justifyContent: 'center', padding: 18 },
+  modalScroll: { flexGrow: 1, justifyContent: 'center' },
+  modalCard: { width: '100%', maxWidth: 500, alignSelf: 'center', borderWidth: 1, borderRadius: 20, padding: 20, gap: 14 },
 });

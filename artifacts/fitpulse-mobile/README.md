@@ -1,4 +1,6 @@
-# GYM Buddy Movement companion
+# GYM Buddy mobile
+
+The mobile app includes Today, Nutrition, Strength, Movement, Insights, and My plan, styled to match the GYM Buddy website. Meals, sets, fasting sessions, water, weight, and nutrition targets are saved on this phone. The website currently saves those entries in its own browser storage, so they do not sync between devices. Movement is the exception: phone steps and manual entries sync with the paired web Movement page.
 
 On iOS, Expo Pedometer uses Core Motion. With Motion & Fitness permission and a supported physical device, `getStepCountAsync` reads historical step totals over a requested interval, limited to the past seven days. The app queries local hourly intervals on launch and when it returns to the foreground, then replaces each day's native snapshot on the paired GYM Buddy account. No JavaScript listener is claimed to keep running while locked.
 
@@ -9,3 +11,5 @@ Sources: [Expo Pedometer](https://docs.expo.dev/versions/latest/sdk/pedometer/),
 The movement tables are defined in the shared Drizzle schema. The configured post-merge setup pushes this schema to the development database. Replit Publish applies the development-to-production schema diff when the project is published; the API intentionally does not modify schema on startup.
 
 Pairing: create the private key in the web Movement view, paste it into the mobile app. The key is a bearer credential; the server stores its hash, while the phone stores the key in SecureStore. Keep it private. Existing browser sensor estimates and old manual entries cannot be distinguished. When a native snapshot arrives for that date it replaces that older browser total, not adds to it. New manual additions use separate idempotent event IDs, so refreshes of native history do not double-count them. Clearing manual steps never erases native phone history.
+
+In the browser preview only, pairing uses browser-local storage because SecureStore is not available there. Browser previews cannot read the native step sensor.
