@@ -322,7 +322,7 @@ export default function StrengthIntervalTimer() {
         <div ref={overlayRef} tabIndex={-1} className="sit-overlay" data-phase={view.phase}
           role="dialog" aria-modal="true" aria-label="Strength interval timer" data-testid="dialog-interval-timer">
           <div className="sit-overlay-top">
-            <div className="sit-overlay-brand"><Dumbbell size={19} /> FitPulse <span style={{ color: '#a69b8d', fontWeight: 500 }}> / Strength</span></div>
+            <div className="sit-overlay-brand"><Dumbbell size={19} /> GYM Buddy <span style={{ color: '#a69b8d', fontWeight: 500 }}> / Strength</span></div>
             <button type="button" onClick={reset} data-testid="button-close-interval"><X size={16} /> End session</button>
           </div>
           <main className="sit-overlay-main">

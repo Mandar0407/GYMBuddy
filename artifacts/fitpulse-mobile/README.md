@@ -1,6 +1,6 @@
-# FitPulse Movement companion
+# GYM Buddy Movement companion
 
-On iOS, Expo Pedometer uses Core Motion. With Motion & Fitness permission and a supported physical device, `getStepCountAsync` reads historical step totals over a requested interval, limited to the past seven days. The app queries local hourly intervals on launch and when it returns to the foreground, then replaces each day's native snapshot on the paired FitPulse account. No JavaScript listener is claimed to keep running while locked.
+On iOS, Expo Pedometer uses Core Motion. With Motion & Fitness permission and a supported physical device, `getStepCountAsync` reads historical step totals over a requested interval, limited to the past seven days. The app queries local hourly intervals on launch and when it returns to the foreground, then replaces each day's native snapshot on the paired GYM Buddy account. No JavaScript listener is claimed to keep running while locked.
 
 Expo Pedometer's `watchStepCount` does **not** deliver updates in the background. Its historical `getStepCountAsync` is **iOS only**. Android in this Expo Go-compatible version therefore does not promise locked-screen history; it can still display and add paired manual steps. An Android implementation would need a separate supported Health Connect integration and user consent.
 

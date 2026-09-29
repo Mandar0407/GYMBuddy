@@ -3,7 +3,7 @@ import {
   ActivityIndicator, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet,
   Text, TextInput, View,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import * as Haptics from 'expo-haptics';
@@ -161,7 +161,7 @@ export default function MovementScreen() {
       await getMovement({ headers: { Authorization: `Bearer ${next}` } });
       await SecureStore.setItemAsync(PAIR_KEY, next);
       setKey(next); setPairInput('');
-      setMessage('Connected to your FitPulse Movement page.');
+      setMessage('Connected to your GYM Buddy Movement page.');
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch { setPairError('Key not found or server unavailable. Check the key and connection.'); }
     finally { setSaving(false); }
@@ -204,7 +204,7 @@ export default function MovementScreen() {
       paddingTop: Platform.OS === 'web' ? 67 : insets.top + 18,
       paddingBottom: Platform.OS === 'web' ? 40 : insets.bottom + 32,
     }]}>
-      <View style={styles.brand}><View style={[styles.brandMark, { backgroundColor: colors.primary }]}><Feather name="activity" size={20} color={colors.primaryForeground} /></View><Text style={[styles.brandText, { color: colors.foreground }]}>fitpulse</Text><Text style={[styles.brandSide, { color: colors.mutedForeground }]}>MOVEMENT</Text></View>
+      <View style={styles.brand}><View style={[styles.brandMark, { backgroundColor: colors.primary }]}><MaterialCommunityIcons name="dumbbell" size={20} color={colors.primaryForeground} /></View><Text style={[styles.brandText, { color: colors.foreground }]}>GYM Buddy</Text><Text style={[styles.brandSide, { color: colors.mutedForeground }]}>MOVEMENT</Text></View>
       <Text style={[styles.eyebrow, { color: colors.secondaryForeground }]}>MOVEMENT · TODAY</Text>
       <Text style={[styles.title, { color: colors.foreground }]}>Take the{'\n'}long way.</Text>
       <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Steps are a gentle vote for more energy.</Text>
@@ -222,10 +222,10 @@ export default function MovementScreen() {
         <View style={styles.row}><Feather name="smartphone" size={19} color={colors.primary} /><Text style={[styles.heading, { color: colors.foreground }]}>Phone step history</Text></View>
         {Platform.OS === 'ios' ? (
           <>
-            <Text style={[styles.description, { color: colors.mutedForeground }]}>iPhone records supported walking steps while locked. FitPulse reads the last seven days when you open or return to the app; it does not run a continuous background listener.</Text>
+            <Text style={[styles.description, { color: colors.mutedForeground }]}>iPhone records supported walking steps while locked. GYM Buddy reads the last seven days when you open or return to the app; it does not run a continuous background listener.</Text>
             {sensor === 'checking' || sensor === 'reading' ? <View style={styles.row}><ActivityIndicator color={colors.primary} /><Text style={{ color: colors.foreground }}>{sensor === 'reading' ? 'Reading hourly history…' : 'Checking sensor…'}</Text></View> : null}
             {sensor === 'needs-permission' && button('Allow Motion & Fitness', allowMotion, 'allow-motion')}
-            {sensor === 'denied' && <><Text style={{ color: colors.destructive }}>Motion access denied. {canAskMotion ? 'Try permission again.' : 'Enable Motion & Fitness for FitPulse in Settings.'}</Text>{canAskMotion ? button('Ask again', allowMotion, 'ask-motion-again', true) : button('Open Settings', () => void Linking.openSettings(), 'open-settings', true)}</>}
+            {sensor === 'denied' && <><Text style={{ color: colors.destructive }}>Motion access denied. {canAskMotion ? 'Try permission again.' : 'Enable Motion & Fitness for GYM Buddy in Settings.'}</Text>{canAskMotion ? button('Ask again', allowMotion, 'ask-motion-again', true) : button('Open Settings', () => void Linking.openSettings(), 'open-settings', true)}</>}
             {sensor === 'unavailable' && <Text style={{ color: colors.mutedForeground }}>A supported iPhone pedometer is not available on this device.</Text>}
             {sensor === 'error' && button('Try reading again', () => void readHistory(key), 'retry-steps')}
             {sensor === 'ready' && button('Refresh phone steps', () => void readHistory(key), 'refresh-steps', true)}
@@ -235,7 +235,7 @@ export default function MovementScreen() {
       </>)}
       {card(<>
         <View style={styles.row}><Feather name="link" size={19} color={colors.secondaryForeground} /><Text style={[styles.heading, { color: colors.foreground }]}>Sync with the web</Text></View>
-        {key ? <Text style={[styles.description, { color: colors.secondaryForeground }]}>Paired with your FitPulse Movement page. Phone steps replace earlier browser estimates for the same day; manual additions stay separate.</Text> : <>
+        {key ? <Text style={[styles.description, { color: colors.secondaryForeground }]}>Paired with your GYM Buddy Movement page. Phone steps replace earlier browser estimates for the same day; manual additions stay separate.</Text> : <>
           <Text style={[styles.description, { color: colors.mutedForeground }]}>Create a private pairing key on the web Movement page and paste it here. Do not share it with anyone else.</Text>
           <TextInput testID="pairing-input" value={pairInput} onChangeText={setPairInput} autoCapitalize="none" autoCorrect={false} placeholder="Paste pairing key" placeholderTextColor={colors.mutedForeground} style={[styles.input, { borderColor: colors.border, color: colors.foreground }]} />
           {button('Pair my movement', () => void pair(), 'pair-movement')}

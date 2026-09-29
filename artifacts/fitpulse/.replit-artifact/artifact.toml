@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "FitPulse Fitness Tracker"
+title = "GYM Buddy"
 description = "A personal fitness companion for tracking daily nutrition, strength training, personal records, and steps with a fast, motivating dashboard."
 version = "1.0.0"
 id = "artifacts/fitpulse"

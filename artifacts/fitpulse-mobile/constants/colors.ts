@@ -15,40 +15,60 @@
 const colors = {
   light: {
     // Legacy aliases (kept for backward compatibility)
-    text: '#27231f',
-    tint: '#df7040',
+    text: '#232824',
+    tint: '#42715d',
 
     // Core surfaces
-    background: '#f7f2e8',
-    foreground: '#27231f',
+    background: '#f5f2e9',
+    foreground: '#232824',
 
     // Cards / elevated surfaces
-    card: '#fffefa',
-    cardForeground: '#27231f',
+    card: '#fffdf8',
+    cardForeground: '#232824',
 
     // Primary action color (buttons, links, active states)
-    primary: '#df7040',
-    primaryForeground: '#fffefa',
+    primary: '#42715d',
+    primaryForeground: '#fffdf8',
 
     // Secondary / less-emphasis interactive surfaces
-    secondary: '#e9f1e9',
-    secondaryForeground: '#28674f',
+    secondary: '#e7eee5',
+    secondaryForeground: '#305747',
 
     // Muted / subdued elements (dividers, timestamps, placeholders)
-    muted: '#eae2d7',
-    mutedForeground: '#827b73',
+    muted: '#ebe8df',
+    mutedForeground: '#696d66',
 
     // Accent highlights (badges, selected items, focus rings)
-    accent: '#cfe76b',
-    accentForeground: '#27231f',
+    accent: '#b6d1a7',
+    accentForeground: '#232824',
 
     // Destructive actions (delete, error states)
     destructive: '#d83e35',
     destructiveForeground: '#fffefa',
 
     // Borders and input outlines
-    border: '#e7dfd3',
-    input: '#e7dfd3',
+    border: '#deded4',
+    input: '#deded4',
+  },
+  dark: {
+    text: '#f5f2e9',
+    tint: '#b6d1a7',
+    background: '#1b2420',
+    foreground: '#f5f2e9',
+    card: '#26312b',
+    cardForeground: '#f5f2e9',
+    primary: '#b6d1a7',
+    primaryForeground: '#1b2420',
+    secondary: '#34463a',
+    secondaryForeground: '#e0e9dc',
+    muted: '#303d35',
+    mutedForeground: '#adbcb0',
+    accent: '#b6d1a7',
+    accentForeground: '#1b2420',
+    destructive: '#ef817d',
+    destructiveForeground: '#1b2420',
+    border: '#405047',
+    input: '#405047',
   },
 
   // Border radius (in px). Sync from the sibling web artifact's --radius

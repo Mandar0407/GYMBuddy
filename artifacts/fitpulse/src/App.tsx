@@ -633,9 +633,9 @@ function App() {
 
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
-    <div className={`fp-brand${compact ? ' fp-brand-compact' : ''}`} data-testid="brand-fitpulse">
-      <span className="fp-brand-mark"><Activity size={compact ? 17 : 19} strokeWidth={2.5} /></span>
-      <span>fit<span>pulse</span></span>
+    <div className={`fp-brand${compact ? ' fp-brand-compact' : ''}`} data-testid="brand-gym-buddy">
+      <span className="fp-brand-mark"><Dumbbell size={compact ? 17 : 19} strokeWidth={2.5} /></span>
+      <span>GYM <span>Buddy</span></span>
     </div>
   );
 }

@@ -283,7 +283,7 @@ export default function PremiumDashboard({
           <button type="button" onClick={() => onNavigate('workout')} data-testid="button-view-workout-details">View workout <ArrowRight size={15} /></button>
         </section>
 
-        <footer className="fp-footer"><span><Activity size={14} /> FitPulse</span><span>Built around your life, not the other way around.</span></footer>
+        <footer className="fp-footer"><span><Dumbbell size={14} /> GYM Buddy</span><span>Built around your life, not the other way around.</span></footer>
       </div>
       {mealDialogOpen && (
         <div className="fp-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setMealDialogOpen(false); }}>

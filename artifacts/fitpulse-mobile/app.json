@@ -1,16 +1,16 @@
 {
   "expo": {
-    "name": "FitPulse",
+    "name": "GYM Buddy",
     "slug": "fitpulse",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/gym-buddy-icon.png",
     "scheme": "fitpulse",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false,
       "infoPlist": {
-        "NSMotionUsageDescription": "FitPulse reads your iPhone's step history to show your daily and hourly movement, including walks while the screen was locked."
+        "NSMotionUsageDescription": "GYM Buddy reads your iPhone's step history to show your daily and hourly movement, including walks while the screen was locked."
       },
       "bundleIdentifier": "com.fitpulse.app"
     },
@@ -18,7 +18,7 @@
       "package": "com.fitpulse.app"
     },
     "web": {
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/gym-buddy-icon.png"
     },
     "plugins": [
       "expo-router",
