@@ -1,0 +1,284 @@
+import React, { useState } from 'react';
+import {
+  Modal,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Pressable,
+} from 'react-native';
+
+interface PlateCalculatorModalProps {
+  visible: boolean;
+  onClose: () => void;
+  initialWeight?: number;
+}
+
+interface PlateResult {
+  plate: number;
+  count: number;
+}
+
+export const PlateCalculatorModal: React.FC<PlateCalculatorModalProps> = ({
+  visible,
+  onClose,
+  initialWeight = 60,
+}) => {
+  const [targetWeight, setTargetWeight] = useState<string>(initialWeight.toString());
+  const [barWeight, setBarWeight] = useState<number>(20); // Standard Olympic Barbell
+
+  const calculatePlates = (target: number, bar: number): PlateResult[] => {
+    const availablePlates = [25, 20, 15, 10, 5, 2.5, 1.25];
+    let weightPerSide = (target - bar) / 2;
+
+    if (weightPerSide <= 0 || isNaN(weightPerSide)) return [];
+
+    const result: PlateResult[] = [];
+    for (const plate of availablePlates) {
+      const count = Math.floor(weightPerSide / plate);
+      if (count > 0) {
+        result.push({ plate, count });
+        weightPerSide -= count * plate;
+      }
+    }
+    return result;
+  };
+
+  const parsedTarget = parseFloat(targetWeight) || 0;
+  const plateBreakdown = calculatePlates(parsedTarget, barWeight);
+  const isValidWeight = parsedTarget > barWeight && (parsedTarget - barWeight) % 2.5 === 0;
+
+  return (
+    <Modal
+      animationType="fade"
+      transparent={true}
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.overlay} onPress={onClose}>
+        <Pressable style={styles.container} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Plate Calculator</Text>
+
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Text style={styles.closeText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Barbell Selector */}
+          <View style={styles.barSelector}>
+            <Text style={styles.label}>Barbell Weight</Text>
+
+            <View style={styles.toggleGroup}>
+              {[20, 15, 10].map((weight) => (
+                <TouchableOpacity
+                  key={weight}
+                  style={[
+                    styles.toggleBtn,
+                    barWeight === weight && styles.toggleBtnActive,
+                  ]}
+                  onPress={() => setBarWeight(weight)}
+                >
+                  <Text
+                    style={[
+                      styles.toggleText,
+                      barWeight === weight && styles.toggleTextActive,
+                    ]}
+                  >
+                    {weight} kg
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Target Weight Input */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Target Weight (kg)</Text>
+
+            <TextInput
+              style={styles.input}
+              value={targetWeight}
+              onChangeText={setTargetWeight}
+              keyboardType="decimal-pad"
+              placeholder="e.g. 100"
+              placeholderTextColor="#71717A"
+              selectTextOnFocus
+            />
+          </View>
+
+          {/* Results Display */}
+          <View style={styles.resultContainer}>
+            <Text style={styles.sublabel}>Plates needed PER SIDE:</Text>
+
+            {parsedTarget <= barWeight ? (
+              <Text style={styles.warningText}>
+                Enter a weight greater than the bar ({barWeight} kg).
+              </Text>
+            ) : plateBreakdown.length === 0 ? (
+              <Text style={styles.warningText}>
+                Unable to load exact weight with standard plates.
+              </Text>
+            ) : (
+              <View style={styles.plateGrid}>
+                {plateBreakdown.map((item) => (
+                  <View key={item.plate} style={styles.plateBadge}>
+                    <Text style={styles.plateCount}>{item.count}x</Text>
+
+                    <Text style={styles.plateWeight}>{item.plate} kg</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+
+          <TouchableOpacity style={styles.doneBtn} onPress={onClose}>
+            <Text style={styles.doneBtnText}>Done</Text>
+          </TouchableOpacity>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  container: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: '#18181B', // Dark zinc background
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#27272A',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FAFAFA',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  closeText: {
+    color: '#A1A1AA',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#A1A1AA',
+    marginBottom: 8,
+  },
+  sublabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#71717A',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  barSelector: {
+    marginBottom: 16,
+  },
+  toggleGroup: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  toggleBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    backgroundColor: '#27272A',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  toggleBtnActive: {
+    backgroundColor: '#10B981', // Accent color
+  },
+  toggleText: {
+    color: '#A1A1AA',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  toggleTextActive: {
+    color: '#000000',
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  input: {
+    backgroundColor: '#09090B',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    color: '#FAFAFA',
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  resultContainer: {
+    backgroundColor: '#09090B',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#27272A',
+    marginBottom: 20,
+    minHeight: 110,
+    justifyContent: 'center',
+  },
+  warningText: {
+    color: '#F59E0B',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  plateGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  plateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#27272A',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  plateCount: {
+    color: '#10B981',
+    fontWeight: '800',
+    fontSize: 15,
+  },
+  plateWeight: {
+    color: '#FAFAFA',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  doneBtn: {
+    backgroundColor: '#10B981',
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  doneBtnText: {
+    color: '#000000',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+});
