@@ -9,6 +9,7 @@ type Props = KeyboardAwareScrollViewProps & ScrollViewProps;
 export function KeyboardAwareScrollViewCompat({
   children,
   keyboardShouldPersistTaps = 'handled',
+  mode = 'layout',
   ...props
 }: Props) {
   if (Platform.OS === 'web') {
@@ -21,10 +22,13 @@ export function KeyboardAwareScrollViewCompat({
       </ScrollView>
     );
   }
+  // Render the native ScrollView directly. The inset-mode decorator adds a
+  // second layout boundary around persistent tabs and can clip their viewport.
   return (
     <KeyboardAwareScrollView
       keyboardShouldPersistTaps={keyboardShouldPersistTaps}
       {...props}
+      mode={mode}
     >
       {children}
     </KeyboardAwareScrollView>

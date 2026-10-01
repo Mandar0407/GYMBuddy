@@ -275,7 +275,7 @@ function MovementScreen({ embedded, onSummaryChange }: { embedded?: boolean; onS
   );
 
   return (
-    <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={[styles.content, {
+    <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={[styles.content, {
       paddingTop: embedded ? 22 : Platform.OS === 'web' ? 67 : insets.top + 18,
       paddingBottom: Platform.OS === 'web' ? 40 : insets.bottom + 32,
     }]}>
