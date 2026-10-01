@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import type { FitnessProfile, Meal, WorkoutSet } from '@/providers/FitnessProvider';
 
 type WidgetFitnessSource = {
@@ -12,7 +13,7 @@ type WidgetFitnessSource = {
 
 export type GymBuddyWidgetSyncResult =
   | { status: 'updated' }
-  | { status: 'skipped'; reason: 'unsupported-platform' }
+  | { status: 'skipped'; reason: 'unsupported-platform' | 'expo-go' }
   | { status: 'error'; error: string };
 
 const localDateKey = (date: Date) =>
@@ -28,6 +29,11 @@ export async function updateGymBuddyWidget(
 ): Promise<GymBuddyWidgetSyncResult> {
   if (Platform.OS !== 'ios') {
     return { status: 'skipped', reason: 'unsupported-platform' };
+  }
+  // Replit's native previews and Expo Go do not include our widget extension.
+  // Do not even import its native module in that host.
+  if (Constants.executionEnvironment === ExecutionEnvironment.StoreClient) {
+    return { status: 'skipped', reason: 'expo-go' };
   }
 
   const today = localDateKey(new Date());

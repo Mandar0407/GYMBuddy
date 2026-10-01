@@ -13,3 +13,4 @@
 - [Expo dependency audit compatibility](expo-audit-compatibility.md) — audit overrides may select ESM-only packages incompatible with Expo Router’s older CommonJS dependency chain.
 - [Paired journal sync](mobile-journal-locality.md) — paired journals merge conservatively; unpaired records and active drafts remain local.
 - [Expo DevTools startup warning](expo-devtools-startup-warning.md) — a missing shared library can prevent optional DevTools installation without breaking Metro or the app preview.
+- [Expo native preview verification](expo-native-preview-verification.md) — fetch the manifest's launch URL; a guessed root bundle path can give misleading monorepo errors.
