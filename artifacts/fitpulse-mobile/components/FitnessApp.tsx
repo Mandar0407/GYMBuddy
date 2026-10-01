@@ -493,13 +493,17 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
       {movementScreen}
     </View>
      {(['Today', 'Nutrition', 'Strength', 'Insights', 'My plan'] as const).map((section) =>
-      <KeyboardAwareScrollViewCompat key={section} style={{ flex: 1, display: tab === section ? 'flex' : 'none' }} bottomOffset={60} contentContainerStyle={[s.content, { paddingBottom: Platform.OS === 'web' ? 34 + 30 : insets.bottom + 30 }]} keyboardShouldPersistTaps="handled">
+      // Native keyboard-aware scrolling adds its own flex container. Hide the
+      // whole page, not just its inner scroll view, so inactive tabs take no space.
+      <View key={section} style={{ flex: 1, display: tab === section ? 'flex' : 'none' }}>
+      <KeyboardAwareScrollViewCompat style={{ flex: 1 }} bottomOffset={60} contentContainerStyle={[s.content, { paddingBottom: Platform.OS === 'web' ? 34 + 30 : insets.bottom + 30 }]} keyboardShouldPersistTaps="handled">
        {!fit.ready ? <View style={s.stack}>{[1,2,3].map(n => <View key={n} style={[s.skeleton, { backgroundColor: colors.muted }]} />)}</View> : loadBlocked ? <Panel colors={colors}><Text style={[s.sectionTitle, { color: colors.destructive }]}>Your journal couldn’t load.</Text><Muted colors={colors}>{fit.error}</Muted><Muted colors={colors}>Please reopen the app to try again.</Muted></Panel> :
        <View style={s.stack}>
          {!!fit.error && <Text accessibilityRole="alert" style={[s.feedback, { color: colors.destructive }]}>{fit.error}</Text>}
          {section === 'Today' ? todayScreen : section === 'Nutrition' ? nutritionScreen : section === 'Strength' ? strengthScreen : section === 'Insights' ? insightsScreen : planScreen}
        </View>}
-     </KeyboardAwareScrollViewCompat>)}
+     </KeyboardAwareScrollViewCompat>
+     </View>)}
     <View style={[s.navWrap, { backgroundColor: colors.card, borderTopColor: colors.border, paddingBottom: Platform.OS === 'web' ? 34 : insets.bottom }]}>
       <View style={s.nav}>{tabs.map(t => {
         const selected = t === 'Log' ? tab === 'Nutrition' || tab === 'Strength' : t === 'Plan' ? tab === 'My plan' : tab === t;
