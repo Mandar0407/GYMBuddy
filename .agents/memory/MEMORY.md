@@ -15,3 +15,4 @@
 - [Expo DevTools startup warning](expo-devtools-startup-warning.md) — a missing shared library can prevent optional DevTools installation without breaking Metro or the app preview.
 - [Expo native preview verification](expo-native-preview-verification.md) — fetch the manifest's launch URL; a guessed root bundle path can give misleading monorepo errors.
 - [Native tab visibility](native-tab-visibility.md) — hide the outer page, not the keyboard-aware scroll view; hidden native wrappers can clip active content.
+- [Mobile feature preservation](mobile-feature-preservation.md) — premium visual polish must retain every existing mobile feature.
