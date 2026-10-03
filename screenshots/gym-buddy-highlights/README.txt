@@ -23,3 +23,14 @@ it shows typed barcode lookup, not a native camera scan.
 
 No changes were made to the app UI, user journals or paired device data.
 The overview image is for reviewing the collection, not an upload screenshot.
+
+FINAL COLLECTION: 15 listing graphics and 15 corresponding plain captures.
+Images 01–10 retain the exact approved graphics, without re-rendering them.
+Images 11–15 add Today, walking workouts, plate calculator, calendar and
+personal planning estimates. Demonstration steps were added manually in the
+isolated preview; no native sensor readings were invented. Personal targets
+are estimates, not medical advice.
+
+APPLE UPLOAD LIMIT: Up to 10 screenshots per device-size and language set.
+Choose ten of these fifteen. The original approved set is numbered 01–10;
+the five new images are alternatives, not five additional allowed slots.

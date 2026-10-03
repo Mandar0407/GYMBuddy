@@ -84,3 +84,45 @@ mtime_ms = 1791052867433
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:f20fccba-b9f2-40ab-973f-ec0c4df86162/bc40fd83-405e-4b15-8db5-b52cac39e37d/6d89e702-6ef9-4f4a-ac12-ffb16dc64e87"
 storage_version_token = "1791052917405207"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "3Zqzcl5Ujg99Z1ZC3xLAi"
+uri = "file://screenshots/gym-buddy-final-15-highlights.zip"
+type = "unspecified"
+title = "GYM Buddy — Final 15 feature screenshots"
+description = "15 branded PNGs at 1320 × 2868, without transparency. Keeps your approved 10 unchanged and adds Today, walking workouts, plate calculator, calendar and personal targets. Expo preview captures; choose up to 10 per Apple screenshot set and verify against native iOS."
+logical_id = "d6baa4ec-55a9-4973-9bde-a9df328926ad"
+content_hash = "sha256:06d57bfdd0c6272bccfecbae76895be27c8353681ec5bc390c8b6da4d40435ca"
+size = 6966018
+mtime_ms = 1791053310873
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:f20fccba-b9f2-40ab-973f-ec0c4df86162/d6baa4ec-55a9-4973-9bde-a9df328926ad/69d59f9b-b138-43f5-b459-420a1e904434"
+storage_version_token = "1791053349396658"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "jrXjU85l1mbGi6gSPJMv7"
+uri = "file://screenshots/gym-buddy-highlights/final-15-overview.jpg"
+type = "image"
+title = "Preview the complete 15-image set"
+description = "Overview of all fifteen feature-highlight images. For reviewing the collection, not uploading as an extra screenshot."
+logical_id = "f8d90720-f639-4000-9677-be3639c838a0"
+content_hash = "sha256:6ae2f998a542222eac4352997324b5bbef3cbfa26575227aa91a618f7d2e23af"
+size = 430873
+mtime_ms = 1791053315097
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:f20fccba-b9f2-40ab-973f-ec0c4df86162/f8d90720-f639-4000-9677-be3639c838a0/7a6d1eef-7653-4682-9e55-ecc6e422dbc2"
+storage_version_token = "1791053350760518"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "p4rC-Tqh8yUfa5yTIqDb1"
+uri = "file://screenshots/gym-buddy-final-15-plain-screenshots.zip"
+type = "unspecified"
+title = "All 15 plain screenshots"
+description = "The same fifteen app screens without promotional headlines. Each is a 1320 × 2868 RGB PNG captured from the isolated Expo preview."
+logical_id = "97c09822-4e99-4be8-9896-59640a6eff27"
+content_hash = "sha256:0c221a83c87c73042a292a54e2431dcadf390ddb837d1901b555cad19a9293c4"
+size = 2760250
+mtime_ms = 1791053310985
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:f20fccba-b9f2-40ab-973f-ec0c4df86162/97c09822-4e99-4be8-9896-59640a6eff27/8a6d78a0-7fe8-4491-9f86-a4b4c85856e4"
+storage_version_token = "1791053352157523"
+content_type = "application/octet-stream"

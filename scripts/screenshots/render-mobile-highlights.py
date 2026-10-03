@@ -4,6 +4,7 @@ import subprocess
 import tempfile
 import zipfile
 import struct
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "screenshots/gym-buddy-highlights"
@@ -27,6 +28,15 @@ SCREENS = [
     ("09-guided-workout", "Train with\na plan.", "Follow your routine. Log weights and reps."),
     ("10-exercise-alternatives", "A different move.\nMore options.", "Explore alternatives for your equipment."),
 ]
+FINAL = "--final" in sys.argv
+if FINAL:
+    SCREENS.extend([
+        ("11-today-dashboard", "Your day.\nOne clear view.", "Meals, movement and strength at a glance."),
+        ("12-walking-workouts", "Make room\nfor movement.", "Indoor and outdoor walking workout timers."),
+        ("13-plate-calculator", "Load the bar.\nSkip the maths.", "Find the plates needed on each side."),
+        ("14-calendar-journal", "Your journal.\nDay by day.", "Revisit meals, strength and water by date."),
+        ("15-personal-targets", "Targets that\nstart with you.", "Estimate calories and macros from your inputs."),
+    ])
 
 NOTES = """GYM Buddy — feature-focused screenshot collection
 
@@ -54,6 +64,19 @@ it shows typed barcode lookup, not a native camera scan.
 No changes were made to the app UI, user journals or paired device data.
 The overview image is for reviewing the collection, not an upload screenshot.
 """
+if FINAL:
+    NOTES += """
+FINAL COLLECTION: 15 listing graphics and 15 corresponding plain captures.
+Images 01–10 retain the exact approved graphics, without re-rendering them.
+Images 11–15 add Today, walking workouts, plate calculator, calendar and
+personal planning estimates. Demonstration steps were added manually in the
+isolated preview; no native sensor readings were invented. Personal targets
+are estimates, not medical advice.
+
+APPLE UPLOAD LIMIT: Up to 10 screenshots per device-size and language set.
+Choose ten of these fifteen. The original approved set is numbered 01–10;
+the five new images are alternatives, not five additional allowed slots.
+"""
 
 def run(*args):
     subprocess.run(["magick", *map(str, args)], check=True)
@@ -61,6 +84,11 @@ def run(*args):
 with tempfile.TemporaryDirectory(prefix="gym-buddy-listing-") as temp:
     temp = Path(temp)
     for name, headline, subtitle in SCREENS:
+        if FINAL and int(name[:2]) <= 10:
+            approved = OUTPUT / f"{name}.png"
+            if not approved.exists():
+                raise FileNotFoundError(f"Approved screenshot missing: {approved}")
+            continue
         source = SOURCE / f"{name}.png"
         source_data = source.read_bytes()
         assert struct.unpack(">II", source_data[16:24]) == (1320, 2868)
@@ -91,8 +119,8 @@ with tempfile.TemporaryDirectory(prefix="gym-buddy-listing-") as temp:
 
 (SOURCE / "README.txt").write_text(NOTES)
 for directory, archive in [
-    (OUTPUT, "gym-buddy-feature-highlights.zip"),
-    (SOURCE, "gym-buddy-feature-plain-screenshots.zip"),
+    (OUTPUT, "gym-buddy-final-15-highlights.zip" if FINAL else "gym-buddy-feature-highlights.zip"),
+    (SOURCE, "gym-buddy-final-15-plain-screenshots.zip" if FINAL else "gym-buddy-feature-plain-screenshots.zip"),
 ]:
     with zipfile.ZipFile(ROOT / "screenshots" / archive, "w", zipfile.ZIP_DEFLATED) as z:
         for name, _, _ in SCREENS:
@@ -104,6 +132,6 @@ for directory, archive in [
         z.writestr("README.txt", NOTES)
 
 run("montage", "-font", REGULAR, *[OUTPUT / f"{name}.png" for name, _, _ in SCREENS],
-    "-thumbnail", "264x574", "-tile", "5x2", "-geometry", "+12+12",
-    "-background", "#eee8db", SOURCE / "listing-overview.jpg")
-print("Verified ten listing graphics and ten plain captures; both ZIPs created.")
+    "-thumbnail", "264x574", "-tile", "5x3" if FINAL else "5x2", "-geometry", "+12+12",
+    "-background", "#eee8db", SOURCE / ("final-15-overview.jpg" if FINAL else "listing-overview.jpg"))
+print(f"Verified {len(SCREENS)} listing graphics and {len(SCREENS)} plain captures; both ZIPs created.")
