@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect,useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, Keyboard, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -19,7 +19,8 @@ import IntervalTimer from '@/components/IntervalTimer';
 import ProfileModal from '@/components/ProfileModal';
 import RestTimer from '@/components/RestTimer';
 import PRCelebration from '@/components/PRCelebration';
-import LiveWorkout from '@/components/LiveWorkout';
+import {LiveWorkoutLaunchers} from '@/components/LiveWorkout';
+import {PersistentPage,FrozenPageContent} from '@/components/PersistentPage';
 import MealTemplates from '@/components/MealTemplates';
 import WaterIntakeCard from '@/components/WaterIntakeCard';
 
@@ -109,6 +110,8 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('Today');
+  const [visited,setVisited]=useState<Tab[]>(['Today']);
+  useEffect(()=>{setVisited(previous=>previous.includes(tab)?previous:[...previous,tab]);},[tab]);
   const [mealSaved, setMealSaved] = useState('');
   const [setSaved, setSetSaved] = useState('');
   const [finishMessage, setFinishMessage] = useState('');
@@ -308,7 +311,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
     !sets.length ? { label: 'Log a strength set', detail: 'Record your next exercise', section: 'Strength', icon: 'activity' } :
     steps < goalSteps ? { label: 'Check your movement', detail: `${number(goalSteps - steps)} steps to your goal`, section: 'Movement', icon: 'navigation' } :
     { label: 'Review your week', detail: 'See what your journal shows', section: 'Insights', icon: 'bar-chart-2' };
-  const todayScreen = <View style={s.todayStack}>
+  const todayScreen = tab==='Today'?<View style={s.todayStack}>
     <View style={s.todayHeading}>
       <Label colors={colors}>{new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(dateNow).toUpperCase()}</Label>
       <Text style={[s.todayTitle, { color: colors.foreground }]}>Today<Text style={{ color: colors.secondaryForeground }}>.</Text></Text>
@@ -344,8 +347,8 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
       </Pressable>
     </View>
     <DashboardExtras onNavigate={changeTab} />
-  </View>;
-  const nutritionScreen = <View style={s.stack}>
+  </View>:null;
+  const nutritionScreen = tab==='Nutrition'?<View style={s.stack}>
     {heading('NUTRITION · TODAY', 'Nutrition log', 'Meals, water, and daily targets.')}
     <NutritionHub onMeal={m=>{setEditingMealId(null);setMealName(m.name);setMealType(m.meal);setMealValues({calories:String(m.calories),protein:String(m.protein),carbs:String(m.carbs),fat:String(m.fat)});openMeal();}} />
     {!!mealSaved && <Text accessibilityRole="alert" style={[s.feedback, { color: colors.secondaryForeground }]}>{mealSaved}</Text>}
@@ -362,23 +365,12 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
       onAdd={fit.addWater} onRemove={fit.removeWater} onSetGoal={fit.setWaterGoal} />
     <MealTemplates onLog={fit.addMeal} />
     {mealList()}
-  </View>;
-  const strengthScreen = <View style={s.stack}>
+  </View>:null;
+  const strengthScreen = tab==='Strength'?<View style={s.stack}>
     {heading('STRENGTH · TODAY', 'Strength log', 'Sessions and sets in one place.')}
     <TrainingHub exercise={exercise} weight={load} onExercise={(name,w,r)=>{setExercise(name);if(w!==undefined)setLoad(w===null?'':String(w));if(r!==undefined)setReps(r===null?'':String(r));}} />
     {!!setSaved && <Text accessibilityRole="alert" style={[s.feedback, { color: colors.secondaryForeground }]}>{setSaved}</Text>}
-     <LiveWorkout steps={steps} stepDate={today} onComplete={(kind, startedAt, sessionId) => {
-       if (kind !== 'strength') return;
-       const completed = new Set(fit.completedWorkouts.flatMap(x => x.setIds));
-       const associated = fit.sets.some(x => x.loggedAt !== undefined && x.loggedAt >= startedAt && x.loggedAt <= Date.now() && !completed.has(x.id));
-       if (!associated) return;
-       setSaving(true);
-       void fit.finishWorkout({ since: startedAt, sessionId }).then(ok => {
-         setSaving(false);
-         setFinishMessage(ok ? 'Strength session and its sets saved.' : 'Session saved, but its sets could not be finished. Review pending sets before finishing them.');
-         if (ok) success();
-       });
-     }} />
+     <LiveWorkoutLaunchers kinds={['strength']}/>
     <IntervalTimer />
     <Panel colors={colors} style={{ backgroundColor: colors.secondary }}>
       <Label colors={colors}>STRENGTH SETS · TODAY</Label><Text style={[s.bigNumber, { color: colors.secondaryForeground }]}>{sets.length} <Text style={s.numberUnit}>sets logged</Text></Text>
@@ -403,8 +395,9 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
          <Pressable testID={`delete-set-${x.id}`} accessibilityLabel={`Delete ${x.exercise} set`} onPress={() => void fit.removeSet(x.id)} hitSlop={10}><Feather name="trash-2" size={17} color={colors.destructive} /></Pressable>
       </View>) : <View style={s.empty}><MaterialCommunityIcons name="dumbbell" size={28} color={colors.primary} /><Text style={[s.smallStrong, { color: colors.foreground }]}>No sets logged yet</Text><Muted colors={colors}>Your next set can be the first mark in a very good training log.</Muted></View>}
     </Panel>
-  </View>;
-  const weekStart = new Date();
+  </View>:null;
+  const {days,inWeek,weekMeals,weekSets,weekWeights,loggedSteps,hasWeek,previousMeals,previousSets,previousSteps,records}=useMemo(()=>{
+  const weekStart = fmtDate(today);
   weekStart.setHours(12, 0, 0, 0);
   weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7) + weekOffset * 7);
   const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(weekStart); d.setDate(d.getDate() + i); return dateKey(d); });
@@ -418,14 +411,17 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
   const previousMeals = fit.meals.filter(x => previousDays.includes(x.date));
   const previousSets = fit.sets.filter(x => previousDays.includes(x.date));
   const previousSteps = movementSummary.week.filter(x => previousDays.includes(x.date) && x.steps !== null);
+  const bestByExercise=new Map<string,(typeof fit.sets)[number]>();
+  for(const entry of fit.sets){
+    const key=entry.exercise.trim().toLowerCase(),best=bestByExercise.get(key);
+    if(!best||entry.estimatedOneRm>best.estimatedOneRm)bestByExercise.set(key,entry);
+  }
+  const records=[...bestByExercise.values()].filter(x=>inWeek(x.date)).sort((a,b)=>b.estimatedOneRm-a.estimatedOneRm).slice(0,3);
+  return {days,inWeek,weekMeals,weekSets,weekWeights,loggedSteps,hasWeek,previousMeals,previousSets,previousSteps,records};
+  },[today,weekOffset,fit.meals,fit.sets,fit.weights,fit.water,fit.completedWorkouts,movementSummary.week]);
   const comparison = (current: number, previous: number, available: boolean, unit: string) =>
     available ? `${current > previous ? '+' : ''}${number(current - previous)} ${unit} vs previous week` : 'No previous-week entries to compare';
-  const records = Array.from(new Set(fit.sets.map(x => x.exercise.trim().toLowerCase()))).map(key => {
-    const entries = fit.sets.filter(x => x.exercise.trim().toLowerCase() === key);
-    const best = entries.reduce((top, x) => x.estimatedOneRm > top.estimatedOneRm ? x : top);
-    return best;
-  }).filter(x => inWeek(x.date)).sort((a, b) => b.estimatedOneRm - a.estimatedOneRm).slice(0, 3);
-  const insightsScreen = <View style={s.stack}>
+  const insightsScreen = tab==='Insights'?<View style={s.stack}>
     {heading('YOUR JOURNAL', 'Insights', 'Compare logged activity week by week.')}
     <View style={[s.weekNav, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <Pressable testID="previous-week" onPress={() => setWeekOffset(v => v-1)} hitSlop={12}><Feather name="chevron-left" color={colors.foreground} size={23} /></Pressable>
@@ -510,11 +506,11 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
        {!!weightMessage && <Text style={[s.feedback, { color: weightMessage.startsWith('Enter') || weightMessage.includes('could not') ? colors.destructive : colors.secondaryForeground }]}>{weightMessage}</Text>}
       {weekWeights.length ? weekWeights.map((x, i) => <View key={`${x.date}-${i}`} style={[s.listRow, { borderBottomColor: colors.border }]}><Text style={[s.smallStrong, { color: colors.foreground }]}>{x.date}</Text><Text style={[s.smallStrong, { color: colors.secondaryForeground }]}>{number(x.weight)} kg</Text></View>) : <Muted colors={colors}>No weight entries in this week.</Muted>}
     </Panel>
-  </View>;
+  </View>:null;
   const bmi = validPlan ? w / Math.pow(h/100, 2) : 0;
   const loadBlocked = fit.error.startsWith('Saved fitness data could not be read') ||
     fit.error.startsWith('Fitness data could not be loaded');
-  const planScreen = <View style={s.stack}>
+  const planScreen = tab==='My plan'?<View style={s.stack}>
     {heading('PLANNING DESK · PERSONAL TARGETS', 'Know what to aim for.', 'Use your body, activity, and goal to create a starting point you can actually follow.')}
     <Panel colors={colors}><Label colors={colors}>YOUR INPUTS</Label><Text style={[s.sectionTitle, { color: colors.foreground }]}>A plan that starts with you.</Text><Muted colors={colors}>Change any number and the plan updates instantly.</Muted>
       <View style={s.twoColumns}><View style={s.half}><Field label="Body weight (kg)" numeric value={planForm.weight} onChange={v => updatePlan('weight', v)} colors={colors} testID="plan-weight" /></View><View style={s.half}><Field label="Height (cm)" numeric value={planForm.height} onChange={v => updatePlan('height', v)} colors={colors} testID="plan-height" /></View></View>
@@ -533,7 +529,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
        <Action colors={colors} onPress={() => void apply()} disabled={!validResult || saving} testID="apply-plan">{saving ? 'Applying…' : 'Apply these targets'}</Action>
     </Panel>
     <Panel colors={colors}><Label colors={colors}>BMI CALCULATOR</Label><Text style={[s.sectionTitle, { color: colors.foreground }]}>One number, some context.</Text><Text style={[s.bigNumber, { color: colors.foreground }]}>{validPlan ? bmi.toFixed(1) : '—'}</Text><Muted colors={colors}>{validPlan ? bmi < 18.5 ? 'Below healthy range' : bmi < 25 ? 'Healthy range' : bmi < 30 ? 'Above healthy range' : 'High range' : 'Enter valid measurements to calculate.'}</Muted><Muted colors={colors}>BMI is one signal, not a complete picture of health or athleticism.</Muted></Panel>
-  </View>;
+  </View>:null;
   return <View style={[s.root, { backgroundColor: colors.background }]}>
     <View style={[s.header, { paddingTop: Platform.OS === 'web' ? 67 : insets.top + 10, backgroundColor: colors.background, borderBottomColor: colors.border }]}>
       <View style={s.brand}><View style={[s.brandMark, { backgroundColor: colors.accent }]}><MaterialCommunityIcons name="dumbbell" size={19} color={colors.foreground} /></View><Text style={[s.brandText, { color: colors.foreground }]}>GYM <Text style={{ color: colors.secondaryForeground }}>Buddy</Text></Text></View>
@@ -552,18 +548,14 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
         </Pressable>)}
       </View>
     </View>}
-    <View style={{ display: tab === 'Movement' ? 'flex' : 'none', flex: 1 }}>
-      <Pressable testID="movement-start-workout" onPress={() => changeTab('Strength')} style={[s.movementLauncher, { backgroundColor: colors.secondary, borderBottomColor: colors.border }]}>
-        <Feather name="play-circle" size={19} color={colors.secondaryForeground} />
-        <Text style={[s.smallStrong, { color: colors.secondaryForeground, flex: 1 }]}>Start a walk or strength session</Text>
-        <Feather name="arrow-right" size={17} color={colors.secondaryForeground} />
-      </Pressable>
-      {movementScreen}
-    </View>
-     {(['Today', 'Nutrition', 'Strength', 'Insights', 'My plan'] as const).map((section) =>
+    <PersistentPage active={tab==='Movement'}>
+      <FrozenPageContent active={tab==='Movement'}>{movementScreen}</FrozenPageContent>
+    </PersistentPage>
+     {(['Today', 'Nutrition', 'Strength', 'Insights', 'My plan'] as const).filter(section=>section===tab||visited.includes(section)).map((section) =>
       // Native keyboard-aware scrolling adds its own flex container. Hide the
       // whole page, not just its inner scroll view, so inactive tabs take no space.
-      <View key={section} style={{ flex: 1, display: tab === section ? 'flex' : 'none' }}>
+      <PersistentPage key={section} active={tab===section}>
+      <FrozenPageContent active={tab===section}>
       <KeyboardAwareScrollViewCompat testID={`page-${section.toLowerCase().replace(/\s/g,'-')}`} style={{ flex: 1 }} bottomOffset={60} keyboardDismissMode="on-drag" contentContainerStyle={[s.content, { paddingBottom: Platform.OS === 'web' ? 34 + 30 : insets.bottom + 30 }]} keyboardShouldPersistTaps="handled">
        {!fit.ready ? <View style={s.stack}>{[1,2,3].map(n => <View key={n} style={[s.skeleton, { backgroundColor: colors.muted }]} />)}</View> : loadBlocked ? <Panel colors={colors}><Text style={[s.sectionTitle, { color: colors.destructive }]}>Your journal couldn’t load.</Text><Muted colors={colors}>{fit.error}</Muted><Muted colors={colors}>Please reopen the app to try again.</Muted></Panel> :
        <View style={s.stack}>
@@ -571,7 +563,8 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
          {section === 'Today' ? todayScreen : section === 'Nutrition' ? nutritionScreen : section === 'Strength' ? strengthScreen : section === 'Insights' ? insightsScreen : planScreen}
        </View>}
      </KeyboardAwareScrollViewCompat>
-     </View>)}
+     </FrozenPageContent>
+     </PersistentPage>)}
     <View style={[s.navWrap, { backgroundColor: colors.card, borderTopColor: colors.border, paddingBottom: Platform.OS === 'web' ? 34 : insets.bottom }]}>
       <View style={s.nav}>{tabs.map(t => {
         const selected = t === 'Log' ? tab === 'Nutrition' || tab === 'Strength' : t === 'Plan' ? tab === 'My plan' : tab === t;

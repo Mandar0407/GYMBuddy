@@ -102,10 +102,20 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
     const operation = queue.current.then(async () => {
       if (!usable.current) { setError('Advanced data is not ready. Reopen the app to retry loading.'); return false; }
       try {
-        setSaved(false);
         const next = validatePremium(change(ref.current));
+        const changed=Object.keys(next).filter(key=>{
+          const k=key as keyof PremiumState;
+          return next[k]!==ref.current[k]&&JSON.stringify(next[k])!==JSON.stringify(ref.current[k]);
+        });
+        if(!changed.length){setError('');return true;}
+        const draftOnly=changed.every(key=>['guided','routineDraft','recipeDraft'].includes(key));
+        if(!draftOnly)setSaved(false);
         await AsyncStorage.setItem(PREMIUM_KEY, JSON.stringify(next));
-        ref.current = next; setState(next); setError(''); setSaved(true); return true;
+        ref.current = next;
+        // Draft owners already have their live local state. Publishing their
+        // keystrokes through the app-wide context redraws every mounted screen.
+        if(!draftOnly){setState(next);setSaved(true);}
+        setError('');return true;
       } catch (e) { setError(e instanceof Error ? e.message : 'Could not save. Your entries were kept.'); return false; }
     });
     queue.current = operation.catch(() => undefined);

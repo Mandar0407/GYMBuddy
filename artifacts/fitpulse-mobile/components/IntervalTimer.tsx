@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import {usePageVisible}from'@/components/PersistentPage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert, AppState, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
@@ -144,6 +145,7 @@ function Stepper({ label, value, min, max, step, display, onChange, testID, colo
 }
 
 export default function IntervalTimer() {
+  const pageVisible=usePageVisible();
   const colors = useColors();
   const reduced=useReducedMotion();
   const insets = useSafeAreaInsets();
@@ -164,13 +166,15 @@ export default function IntervalTimer() {
   };
 
   useEffect(() => {
+    if(!pageVisible)return;
     const tick = () => {
       const current = sessionRef.current;
       if (!current?.running) return;
       const next = tickSession(current, Date.now());
       if (next !== current) publish(next);
     };
-    const interval = setInterval(tick, 200);
+    tick();
+    const interval = setInterval(tick, 1000);
     const appState = AppState.addEventListener('change', state => {
       if (state === 'active') tick();
     });
@@ -178,7 +182,7 @@ export default function IntervalTimer() {
       clearInterval(interval);
       appState.remove();
     };
-  }, []);
+  }, [pageVisible]);
 
   useEffect(() => {
     let mounted = true;

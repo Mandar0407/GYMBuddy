@@ -14,6 +14,7 @@ import {
   usePutMovementSettings, useResetMovementManual, getGetMovementQueryKey,
 } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
+import LiveWorkout,{LiveWorkoutLaunchers} from '@/components/LiveWorkout';
 import FitnessApp from '@/components/FitnessApp';
 import { useFitness, type MovementSummary } from '@/providers/FitnessProvider';
 
@@ -283,6 +284,7 @@ function MovementScreen({ embedded, onSummaryChange }: { embedded?: boolean; onS
       <Text style={[styles.eyebrow, { color: colors.secondaryForeground }]}>MOVEMENT · TODAY</Text>
       <Text style={[styles.title, { color: colors.foreground }]}>Take the{'\n'}long way.</Text>
       <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Steps are a gentle vote for more energy.</Text>
+      <LiveWorkoutLaunchers kinds={['outdoor-walk','indoor-walk']}/>
       {card(<>
         <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>TODAY'S MOVEMENT</Text>
         <Text testID="mobile-step-total" style={[styles.number, { color: colors.foreground }]}>{steps.toLocaleString()}<Text style={styles.unit}> steps</Text></Text>
@@ -452,10 +454,12 @@ export default function Home() {
     );
   }, []);
   return (
+    <LiveWorkout steps={movementSummary.steps}>
     <FitnessApp
       movementSummary={movementSummary}
       movementScreen={<MovementScreen embedded onSummaryChange={onSummaryChange} />}
     />
+    </LiveWorkout>
   );
 }
 

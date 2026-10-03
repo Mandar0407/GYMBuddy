@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import {usePageVisible}from'@/components/PersistentPage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
@@ -75,6 +76,7 @@ function Preset({ title, subtitle, selected, colors, onPress, testID }: {
 }
 
 export default function FastingCard() {
+  const pageVisible=usePageVisible();
   const colors = useColors();
   const [session, setSession] = useState<Session | null>(null);
   const [plan, setPlan] = useState<Plan>('16:8');
@@ -110,8 +112,9 @@ export default function FastingCard() {
   }, []);
 
   useEffect(() => {
-    if (!hydrated) return undefined;
+    if (!hydrated||!pageVisible) return undefined;
     const refresh = () => setNow(Date.now());
+    refresh();
     const interval = setInterval(refresh, 1000);
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') refresh();
@@ -120,7 +123,7 @@ export default function FastingCard() {
       clearInterval(interval);
       subscription.remove();
     };
-  }, [hydrated]);
+  }, [hydrated,pageVisible]);
 
   const customNumber = Number(customHours);
   const customValid = /^\d+$/.test(customHours)

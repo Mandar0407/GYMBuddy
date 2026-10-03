@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { createContext,useContext,useMemo,useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
@@ -11,6 +11,12 @@ import { useFitness } from '@/providers/FitnessProvider';
 import { withJournalStorageLock } from '@/providers/journalStorageLock';
 
 type WorkoutKind = 'outdoor-walk' | 'indoor-walk' | 'strength';
+const WorkoutLaunchersContext=createContext<{render:(kinds:WorkoutKind[])=>React.ReactNode}|null>(null);
+export function LiveWorkoutLaunchers({kinds}:{kinds:WorkoutKind[]}){
+  const session=useContext(WorkoutLaunchersContext);
+  if(!session)throw new Error('Shared live workout controller is missing.');
+  return <>{session.render(kinds)}</>;
+}
 type WorkoutHistoryEntry = {
   id: string;
   kind: WorkoutKind;
@@ -148,10 +154,11 @@ function workoutSteps(workout: ActiveWorkout) {
 const isValidObservation = (steps: number, date: string) =>
   Number.isSafeInteger(steps) && steps >= 0 && isDateKey(date);
 
-export default function LiveWorkout({ steps, stepDate: providedStepDate, onComplete }: {
+export default function LiveWorkout({ steps, stepDate: providedStepDate, onComplete,children }: {
   steps: number;
   stepDate?: string;
   onComplete?: (kind: WorkoutKind, startedAt: number, sessionId: string) => void;
+  children?:React.ReactNode;
 }) {
   const stepDate = providedStepDate ?? localDateKey();
   const colors = useColors();
@@ -250,8 +257,11 @@ export default function LiveWorkout({ steps, stepDate: providedStepDate, onCompl
   }, [fit.journalSyncStatus, ready, storageHealthy]);
 
   useEffect(() => {
-    if (!active?.runningSince && !countdown && restUntil <= Date.now()) return;
-    const timer = setInterval(() => setNow(Date.now()), 250);
+    if (!active?.runningSince && restUntil <= Date.now()) return;
+    const timer = setInterval(() => {
+      const timestamp=Date.now();setNow(timestamp);
+      if(restUntil>0&&timestamp>=restUntil)setRestUntil(0);
+    }, 1000);
     return () => clearInterval(timer);
   }, [active?.runningSince, countdown, restUntil]);
 
@@ -279,7 +289,7 @@ export default function LiveWorkout({ steps, stepDate: providedStepDate, onCompl
 
   useEffect(() => {
     if (!countdown) return;
-    const timer = setInterval(() => setNow(Date.now()), 200);
+    const timer = setInterval(() => setNow(Date.now()), 250);
     return () => clearInterval(timer);
   }, [countdown]);
 
@@ -441,6 +451,14 @@ export default function LiveWorkout({ steps, stepDate: providedStepDate, onCompl
       setConfirmEnd(false);
       setError('');
       setRestUntil(0);
+      if(completed.kind==='strength'){
+        const finished=new Set(fit.completedWorkouts.flatMap(w=>w.setIds));
+        if(fit.sets.some(s=>s.loggedAt!==undefined&&s.loggedAt>=completed.startedAt&&s.loggedAt<=completed.endedAt&&!finished.has(s.id))){
+          const linked=await fit.finishWorkout({since:completed.startedAt,sessionId:completed.id});
+          if(!linked)setError('Session saved, but its strength sets could not be finished. Review pending sets in Log.');
+          else if(premium.settings.haptics&&Platform.OS!=='web')void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(()=>{});
+        }
+      }
       onComplete?.(completed.kind, completed.startedAt, completed.id);
       void fit.syncJournal();
     } catch {
@@ -481,27 +499,29 @@ export default function LiveWorkout({ steps, stepDate: providedStepDate, onCompl
     );
   };
 
-  return (
+  const renderLaunchers=(kinds:WorkoutKind[])=>{
+    const shownHistory=history.filter(entry=>kinds.includes(entry.kind));
+    return (
     <View style={styles.container} testID="live-workout">
       <View style={styles.sectionHeading}>
         <View style={styles.headingCopy}>
-          <Text style={[styles.eyebrow, { color: colors.primary }]}>LIVE WORKOUTS / ON YOUR TERMS</Text>
+          <Text style={[styles.eyebrow, { color: colors.primary }]}>{kinds.includes('strength')?'LIVE STRENGTH WORKOUTS':'LIVE WALKS · STEP TRACKING'}</Text>
           <Text style={[styles.heading, { color: colors.foreground }]}>Make this one count.</Text>
         </View>
         <Feather name="activity" size={18} color={colors.secondaryForeground} />
       </View>
-      {(['outdoor-walk', 'indoor-walk', 'strength'] as WorkoutKind[]).map(renderCard)}
+      {kinds.map(renderCard)}
 
       <View style={styles.historyHeading}>
         <View>
-          <Text style={[styles.eyebrow, { color: colors.primary }]}>YOUR MOVEMENT JOURNAL</Text>
+          <Text style={[styles.eyebrow, { color: colors.primary }]}>{kinds.includes('strength')?'YOUR STRENGTH JOURNAL':'YOUR MOVEMENT JOURNAL'}</Text>
           <Text style={[styles.heading, { color: colors.foreground }]}>Completed sessions.</Text>
         </View>
-        <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>{history.length} SAVED</Text>
+        <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>{shownHistory.length} SAVED</Text>
       </View>
-      {!history.length ? (
+      {!shownHistory.length ? (
         <Text style={[styles.empty, { color: colors.mutedForeground }]}>Finished workouts will appear here.</Text>
-      ) : history.map(entry => (
+      ) : shownHistory.map(entry => (
         <View key={entry.id} style={[styles.historyRow, { borderBottomColor: colors.border }]} testID={`row-workout-session-${entry.id}`}>
           <View style={[styles.historyIcon, { backgroundColor: colors.secondary }]}>
             <Feather name={cardDetails[entry.kind].icon} size={17} color={colors.secondaryForeground} />
@@ -522,7 +542,11 @@ export default function LiveWorkout({ steps, stepDate: providedStepDate, onCompl
       ))}
 
       {error ? <Text accessibilityRole="alert" style={[styles.error, { color: colors.destructive }]} testID="status-workout-storage-error">{error}</Text> : null}
-
+    </View>);
+  };
+  const launcherValue=useMemo(()=>({render:renderLaunchers}),[history,ready,storageHealthy,active,countdown,saving,error,colors,fit,steps,stepDate]);
+  return <WorkoutLaunchersContext.Provider value={launcherValue}>
+      {children??renderLaunchers(['outdoor-walk','indoor-walk','strength'])}
       <Modal visible={!!countdown || !!active} animationType={reduced?'none':'slide'} presentationStyle="fullScreen" onRequestClose={() => {
         if (countdown) setCountdown(null);
         else if (!confirmEnd) setConfirmEnd(true);
@@ -651,8 +675,7 @@ export default function LiveWorkout({ steps, stepDate: providedStepDate, onCompl
           ) : null}
         </View>
       </Modal>
-    </View>
-  );
+    </WorkoutLaunchersContext.Provider>;
 }
 
 const styles = StyleSheet.create({
