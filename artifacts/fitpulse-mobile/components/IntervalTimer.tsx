@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {usePageVisible}from'@/components/PersistentPage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert, AppState, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useReducedMotion } from '@/hooks/useReducedMotion';

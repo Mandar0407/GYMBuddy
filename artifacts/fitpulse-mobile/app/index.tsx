@@ -5,7 +5,8 @@ import {
   ActivityIndicator, Alert, AppState, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet,
   Text, TextInput, View,
 } from 'react-native';
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -19,6 +20,7 @@ import { useColors } from '@/hooks/useColors';
 import LiveWorkout,{LiveWorkoutLaunchers} from '@/components/LiveWorkout';
 import FitnessApp from '@/components/FitnessApp';
 import { useFitness, type MovementSummary } from '@/providers/FitnessProvider';
+import { readNativeHistory } from '@/lib/nativeHistory';
 
 const PAIR_KEY = 'fitpulsePairKey';
 const readPairKey = () => Platform.OS === 'web' ? AsyncStorage.getItem(PAIR_KEY) : SecureStore.getItemAsync(PAIR_KEY);
@@ -107,27 +109,12 @@ function MovementScreen({ embedded, onSummaryChange }: { embedded?: boolean; onS
     try {
       const { Pedometer } = await import('expo-sensors');
       if (!await Pedometer.isAvailableAsync()) { setSensor('unavailable'); return; }
-      const now = new Date();
-      const snapshots: NativeDay[] = [];
-      for (let offset = 6; offset >= 0; offset--) {
-        const start = new Date(now);
-        start.setHours(0, 0, 0, 0);
-        start.setDate(start.getDate() - offset);
-        const hours = blank();
-        const lastHour = offset === 0 ? now.getHours() : 23;
-        // Query fixed local-hour intervals. A snapshot replaces the previous one,
-        // never increments it, so reopening after a locked walk cannot double count.
-        for (let hour = 0; hour <= lastHour; hour++) {
-          const from = new Date(start); from.setHours(hour);
-          const until = new Date(start); until.setHours(hour + 1);
-          const end = until < now ? until : now;
-          // On spring-forward days, the skipped local hour maps to the same
-          // instant as the following hour. Core Motion rejects an empty range.
-          if (end <= from) continue;
-          hours[hour] = (await Pedometer.getStepCountAsync(from, end)).steps;
-        }
-        snapshots.push({ date: dateKey(start), hours });
-      }
+      const snapshots = await readNativeHistory(new Date(),
+        (from, end) => Pedometer.getStepCountAsync(from, end),
+        snapshot => setNativeDays(previous => [
+          ...previous.filter(day => day.date !== snapshot.date), snapshot,
+        ]),
+      );
       setNativeDays(snapshots);
       setSensor('ready');
       if (pairKey) {

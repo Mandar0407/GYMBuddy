@@ -20,3 +20,4 @@
 - [Mobile feature preservation](mobile-feature-preservation.md) — premium visual polish must retain every existing mobile feature.
 - [Backup reconciliation](backup-reconciliation.md) — paired restores must respect deletion markers and remain idempotent; photos are opt-in portable data.
 - [Vite test cache isolation](vite-test-cache-isolation.md) — alternate test-loader configurations must not share the running preview's dependency cache.
+- [Startup performance](startup-performance.md) — defer optional UI without delaying restored sessions; preview bundle size is not phone launch-time evidence.

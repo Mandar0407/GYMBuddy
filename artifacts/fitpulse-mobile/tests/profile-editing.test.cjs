@@ -18,7 +18,7 @@ function harness(paired=false){
       if(name==='react')return react;
       if(name==='react/jsx-runtime')return{jsx,jsxs:jsx};
       if(name==='react-native')return{ActivityIndicator:'Spinner',Modal:'Modal',Pressable:'Pressable',Text:'Text',TextInput:'Input',View:'View',StyleSheet:{create:x=>x}};
-      if(name==='@expo/vector-icons')return{Feather:'Icon'};
+      if(name==='@expo/vector-icons/Feather')return 'Icon';
       if(name==='react-native-safe-area-context')return{useSafeAreaInsets:()=>({top:0,bottom:0})};
       if(name==='@/components/KeyboardAwareScrollViewCompat')return{KeyboardAwareScrollViewCompat:'Scroll'};
       if(name==='@/hooks/useColors')return{useColors:()=>({})};

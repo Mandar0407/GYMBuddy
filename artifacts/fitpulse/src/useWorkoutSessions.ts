@@ -13,7 +13,7 @@ export type WorkoutHistoryEntry = {
   activeCalories: number | null;
   totalCalories: number | null;
 };
-type ActiveWorkout = {
+export type ActiveWorkout = {
   id: string;
   kind: WorkoutKind;
   startedAt: number;
@@ -82,6 +82,17 @@ function readDraft(): ActiveWorkout | null {
       runningSince: null, sensorSeen: draft.sensorSeen === true || draft.steps > 0,
     };
   } catch { return null; }
+}
+
+export function validWorkoutDraft(value: unknown): value is ActiveWorkout {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const draft = value as Partial<ActiveWorkout>;
+  return typeof draft.id === 'string' && draft.id.length > 0 && draft.id.length <= 100 &&
+    isKind(draft.kind) && Number.isFinite(draft.startedAt) && Number.isFinite(draft.elapsedMs) && draft.elapsedMs! >= 0 &&
+    (draft.runningSince === null || Number.isFinite(draft.runningSince)) && Number.isFinite(draft.savedAt) &&
+    Number.isSafeInteger(draft.steps) && draft.steps! >= 0 && typeof draft.sensorSeen === 'boolean' &&
+    Number.isFinite(draft.strideCm) && draft.strideCm! >= 30 && draft.strideCm! <= 150 &&
+    Number.isFinite(draft.weightKg) && draft.weightKg! >= 20 && draft.weightKg! <= 500;
 }
 
 export function workoutMetrics(workout: Pick<ActiveWorkout, 'kind' | 'steps' | 'strideCm' | 'weightKg'>, elapsedMs: number, hasMotionData: boolean) {
@@ -263,8 +274,39 @@ export function useWorkoutSessions() {
     }
   };
 
+  const restoreDraft = (value: unknown, strideCm: number, weightKg: number) => {
+    if (activeRef.current || localStorage.getItem(DRAFT_KEY) !== null) return false;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const source = value as Record<string, unknown>;
+    let draft: ActiveWorkout | null = null;
+    if (validWorkoutDraft(value)) draft = value;
+    else if (isKind(source.kind) && typeof source.id === 'string' && Array.isArray(source.stepsByDate)) {
+      const stepsByDate = source.stepsByDate as Array<{date:string;steps:number}>;
+      if (stepsByDate.every((entry) => entry && typeof entry.date === 'string' && Number.isSafeInteger(entry.steps) && entry.steps >= 0)) {
+        const savedAt = Number(source.savedAt);
+        const startedAt = Number(source.startedAt);
+        const runningSince = source.runningSince === null ? null : Number(source.runningSince);
+        const elapsedMs = Number(source.elapsedMs);
+        draft = {
+          id: source.id, kind: source.kind, startedAt, savedAt, runningSince, elapsedMs,
+          steps: stepsByDate.reduce((sum, entry) => sum + entry.steps, 0),
+          sensorSeen: stepsByDate.some((entry) => entry.steps > 0),
+          strideCm, weightKg,
+        };
+      }
+    }
+    if (!validWorkoutDraft(draft)) return false;
+    const savedAt = Date.now();
+    updateActive({
+      ...draft,
+      elapsedMs: draft.elapsedMs + (draft.runningSince !== null ? Math.max(0, savedAt - draft.runningSince) : 0),
+      runningSince: null, savedAt,
+    });
+    return true;
+  };
+
   return {
-    active, sessions, countdown, error, elapsedMs, recordStep, markSensorReady, start, pause, resume, end, replaceSessions,
+    active, sessions, countdown, error, elapsedMs, recordStep, markSensorReady, start, pause, resume, end, replaceSessions, restoreDraft,
     cancelCountdown: () => setCountdown(null),
     countdownNumber: countdown ? Math.max(1, Math.ceil((countdown.endsAt - now) / 1000)) : 0,
   };

@@ -379,7 +379,7 @@ test('custom nutrition goals update both views and persist after refresh', { tim
     await navigateTo(cdp, 'steps');
     await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector('[data-testid="chart-hourly-steps"]'))`), 'hourly activity chart');
     await click(cdp, '[data-testid="button-edit-movement-goal"]');
-    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="input-movement-stride"]').value`), '71');
+    assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="input-movement-stride"]').value`), '76');
     assert.match(await evaluate(cdp, `document.querySelector('#movement-stride-hint').textContent`), /Height × 0\.415/);
     await setInput(cdp, '[data-testid="input-movement-height"]', 180);
     assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="input-movement-stride"]').value`), '75');
@@ -552,6 +552,7 @@ test('custom nutrition goals update both views and persist after refresh', { tim
     await click(cdp, '[data-testid="button-start-fast"]');
     assert.match(await evaluate(cdp, `document.querySelector('[data-testid="text-fasting-window"]').textContent`), /18 hours fasting/);
     await click(cdp, '[data-testid="button-dashboard-weekly-analytics"]');
+    await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector('[data-testid="text-advanced-workouts-completed"]'))`), 'detailed analytics to finish loading');
     assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="text-advanced-workouts-completed"]').textContent`), '1');
     await setInput(cdp, '[data-testid="input-advanced-weight"]', '70.4');
     await click(cdp, '[data-testid="button-log-advanced-weight"]');
@@ -571,6 +572,7 @@ test('custom nutrition goals update both views and persist after refresh', { tim
     await navigateTo(cdp, 'macros');
     assert.match(await evaluate(cdp, `document.querySelector('[data-testid="section-meal-templates"]').textContent`), /Regular smoothie/);
     await navigateTo(cdp, 'insights');
+    await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector('[data-testid="text-advanced-workouts-completed"]'))`), 'detailed analytics after reload');
     assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="text-advanced-workouts-completed"]').textContent`), '1');
     assert.match(await evaluate(cdp, `document.querySelector('[data-testid="card-advanced-weight"]').textContent`), /70.4 kg/);
     await navigateTo(cdp, 'workout');
@@ -578,6 +580,7 @@ test('custom nutrition goals update both views and persist after refresh', { tim
     assert.equal(completedSetIds.length, 2);
     for (const id of completedSetIds) await click(cdp, `[data-testid="row-workout-${id}"] [data-testid="button-delete-workout-${id}"]`);
     await navigateTo(cdp, 'insights');
+    await waitFor(async () => evaluate(cdp, `Boolean(document.querySelector('[data-testid="text-advanced-workouts-completed"]'))`), 'updated analytics after deleting sets');
     assert.equal(await evaluate(cdp, `document.querySelector('[data-testid="text-advanced-workouts-completed"]').textContent`), '0', 'a workout with no remaining sets is not counted as completed');
     await navigateTo(cdp, 'workout');
     await click(cdp, '[data-testid="button-start-workout-strength"]');

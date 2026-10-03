@@ -1,14 +1,12 @@
 import { BrandMark } from './BrandMark';
 import { BrandWordmark } from './BrandWordmark';
-import React, { useEffect,useMemo, useRef, useState } from 'react';
+import React, { lazy, Suspense, useEffect,useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, Keyboard, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Haptics from 'expo-haptics';
 import { usePremium } from '@/providers/PremiumProvider';
-import TrainingHub from '@/components/premium/TrainingHub';
-import NutritionHub from '@/components/premium/NutritionHub';
-import PremiumCenter from '@/components/premium/PremiumCenter';
 import DashboardExtras from '@/components/premium/DashboardExtras';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import {registerDraftSaver} from '@/lib/draftFlush';
@@ -18,13 +16,19 @@ import { useFitness, dateKey, type MovementSummary } from '@/providers/FitnessPr
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import FastingCard from '@/components/FastingCard';
 import IntervalTimer from '@/components/IntervalTimer';
-import ProfileModal from '@/components/ProfileModal';
 import RestTimer from '@/components/RestTimer';
 import PRCelebration from '@/components/PRCelebration';
 import {LiveWorkoutLaunchers} from '@/components/LiveWorkout';
 import {PersistentPage,FrozenPageContent} from '@/components/PersistentPage';
 import MealTemplates from '@/components/MealTemplates';
 import WaterIntakeCard from '@/components/WaterIntakeCard';
+
+// These libraries are not needed to render Today. Load them on first use;
+// visited pages remain mounted below so their drafts are not lost.
+const TrainingHub = lazy(() => import('@/components/premium/TrainingHub'));
+const NutritionHub = lazy(() => import('@/components/premium/NutritionHub'));
+const PremiumCenter = lazy(() => import('@/components/premium/PremiumCenter'));
+const ProfileModal = lazy(() => import('@/components/ProfileModal'));
 
 type Tab = 'Today' | 'Nutrition' | 'Strength' | 'Movement' | 'Insights' | 'My plan';
 type MainTab = 'Today' | 'Log' | 'Movement' | 'Insights' | 'Plan';
@@ -110,6 +114,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
   const heroFg=dark?colors.foreground:colors.card;
   const heroMuted=dark?colors.mutedForeground:colors.muted;
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [workspaceVisited, setWorkspaceVisited] = useState(false);
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('Today');
   const [visited,setVisited]=useState<Tab[]>(['Today']);
@@ -137,6 +142,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
   const [planMessage, setPlanMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [profileVisited, setProfileVisited] = useState(false);
   const [restStartKey, setRestStartKey] = useState(0);
   const [record, setRecord] = useState<{ exercise: string; kind: string; value: number } | null>(null);
   const [dateNow, setDateNow] = useState(() => new Date());
@@ -352,7 +358,9 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
   </View>:null;
   const nutritionScreen = tab==='Nutrition'?<View style={s.stack}>
     {heading('NUTRITION · TODAY', 'Nutrition log', 'Meals, water, and daily targets.')}
+    <Suspense fallback={<Muted colors={colors}>Loading your food library…</Muted>}>
     <NutritionHub onMeal={m=>{setEditingMealId(null);setMealName(m.name);setMealType(m.meal);setMealValues({calories:String(m.calories),protein:String(m.protein),carbs:String(m.carbs),fat:String(m.fat)});openMeal();}} />
+    </Suspense>
     {!!mealSaved && <Text accessibilityRole="alert" style={[s.feedback, { color: colors.secondaryForeground }]}>{mealSaved}</Text>}
     <Panel colors={colors}><Label colors={colors}>YOUR DAILY TARGETS</Label><Text style={[s.sectionTitle, { color: colors.foreground }]}>Base-plan goals</Text><Muted colors={colors}>Current focus: {profile.goal} · Active mode: {advanced.dayMode}. Editing below changes your base plan, not the optional day overrides.</Muted>
       <View style={s.twoColumns}>{(['calories', 'protein', 'carbs', 'fat'] as const).map(k => <View key={k} style={s.half}>
@@ -370,7 +378,9 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
   </View>:null;
   const strengthScreen = tab==='Strength'?<View style={s.stack}>
     {heading('STRENGTH · TODAY', 'Strength log', 'Sessions and sets in one place.')}
+    <Suspense fallback={<Muted colors={colors}>Loading your training tools…</Muted>}>
     <TrainingHub exercise={exercise} weight={load} onExercise={(name,w,r)=>{setExercise(name);if(w!==undefined)setLoad(w===null?'':String(w));if(r!==undefined)setReps(r===null?'':String(r));}} />
+    </Suspense>
     {!!setSaved && <Text accessibilityRole="alert" style={[s.feedback, { color: colors.secondaryForeground }]}>{setSaved}</Text>}
      <LiveWorkoutLaunchers kinds={['strength']}/>
     <IntervalTimer />
@@ -538,9 +548,9 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
       <Pressable testID="open-menu" accessibilityRole="button" accessibilityLabel="Open menu" onPress={() => { tap(); setMenu(v => !v); }} style={[s.menuButton, { borderColor: colors.border, backgroundColor: colors.card }]}><Feather name={menu ? 'x' : 'user'} size={19} color={colors.foreground} /></Pressable>
     </View>
     {menu && <View style={[s.menu, { top: (Platform.OS === 'web' ? 67 : insets.top + 10) + 48, backgroundColor: colors.card, borderColor: colors.border }]}>
-      <Pressable testID="open-workspace" accessibilityLabel="Open personal workspace" onPress={()=>{setMenu(false);setWorkspaceOpen(true);}} style={s.menuItem}><Feather name="grid" size={18} color={colors.primary}/><Text style={[s.smallStrong,{color:colors.foreground}]}>Your workspace</Text></Pressable>
+      <Pressable testID="open-workspace" accessibilityLabel="Open personal workspace" onPress={()=>{setMenu(false);setWorkspaceVisited(true);setWorkspaceOpen(true);}} style={s.menuItem}><Feather name="grid" size={18} color={colors.primary}/><Text style={[s.smallStrong,{color:colors.foreground}]}>Your workspace</Text></Pressable>
       <Pressable testID="nav-my-plan" onPress={() => changeTab('My plan')} style={s.menuItem}><Feather name="clipboard" size={18} color={colors.primary} /><Text style={[s.smallStrong, { color: colors.foreground }]}>My plan</Text><Feather name="arrow-right" size={16} color={colors.primary} /></Pressable>
-      <Pressable testID="open-profile" onPress={() => { setMenu(false); setProfileOpen(true); }} style={s.menuItem}><Feather name="user" size={18} color={colors.primary} /><Text style={[s.smallStrong, { color: colors.foreground }]}>Edit profile</Text><Feather name="arrow-right" size={16} color={colors.primary} /></Pressable>
+      <Pressable testID="open-profile" onPress={() => { setMenu(false); setProfileVisited(true); setProfileOpen(true); }} style={s.menuItem}><Feather name="user" size={18} color={colors.primary} /><Text style={[s.smallStrong, { color: colors.foreground }]}>Edit profile</Text><Feather name="arrow-right" size={16} color={colors.primary} /></Pressable>
     </View>}
     {(tab === 'Nutrition' || tab === 'Strength') && <View style={[s.logSwitchWrap, { backgroundColor: colors.background }]}>
       <View style={[s.logSwitch, { backgroundColor: colors.secondary }]}>
@@ -578,7 +588,9 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
       })}</View>
     </View>
     {fit.undoAvailable && <Pressable accessibilityRole="button" testID="undo-latest-deletion" onPress={()=>void fit.undoLastDeletion()} style={[s.undoBar,{backgroundColor:colors.secondary}]}><Text style={[s.smallStrong,{color:colors.secondaryForeground}]}>Entry deleted · Undo</Text></Pressable>}
-    <PremiumCenter visible={workspaceOpen} onClose={()=>setWorkspaceOpen(false)} movementSummary={movementSummary}/>
+    {workspaceVisited && <Suspense fallback={<Text accessibilityRole="alert" style={[s.feedback, { color: colors.foreground }]}>Loading your workspace…</Text>}>
+      <PremiumCenter visible={workspaceOpen} onClose={()=>setWorkspaceOpen(false)} movementSummary={movementSummary}/>
+    </Suspense>}
     <Modal visible={mealOpen} animationType={reduced?'none':'slide'} transparent onRequestClose={() => { if (!saving) setMealOpen(false); }}>
       <View style={[s.modalBackdrop, { backgroundColor: colors.foreground + '99' }]}>
          <KeyboardAwareScrollViewCompat bottomOffset={60} keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 18, paddingVertical: Platform.OS === 'web' ? 67 : insets.top + 15 }}>
@@ -594,12 +606,14 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
          </KeyboardAwareScrollViewCompat>
       </View>
     </Modal>
+    {profileVisited && <Suspense fallback={<Text accessibilityRole="alert" style={[s.feedback, { color: colors.foreground }]}>Loading your profile…</Text>}>
     <ProfileModal profile={movementSummary.paired ? { ...fit.profile, stepTarget: movementSummary.goal } : fit.profile}
       stepTargetManagedInMovement={!!movementSummary.paired} visible={profileOpen} onClose={() => setProfileOpen(false)} onSave={async (update) => {
       const ok = await fit.applyPlan(update);
       if (ok) { setTargets(null); setPlan(null); }
       return ok;
     }} />
+    </Suspense>}
     <RestTimer startKey={restStartKey} />
     <PRCelebration visible={!!record} exercise={record?.exercise ?? ''} kind={record?.kind ?? ''} value={record?.value ?? 0} onClose={() => setRecord(null)} />
   </View>;

@@ -1,6 +1,6 @@
 import { BrandMark } from './components/BrandMark';
 import './brand.css';
-import { type CSSProperties, type FormEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, type FormEvent, type MouseEvent as ReactMouseEvent, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import {
   Activity,
   Apple,
@@ -23,12 +23,14 @@ import {
   Utensils,
   X,
   Zap,
+  BookOpen,
   type LucideIcon,
 } from 'lucide-react';
 import PremiumDashboard from './PremiumDashboard';
-import MovementPage from './MovementPage';
-import WeeklyInsightsPage from './WeeklyInsightsPage';
-import AdvancedAnalytics from './AdvancedAnalytics';
+const MovementPage = lazy(() => import('./MovementPage'));
+const WeeklyInsightsPage = lazy(() => import('./WeeklyInsightsPage'));
+const AdvancedAnalytics = lazy(() => import('./AdvancedAnalytics'));
+const PremiumTools = lazy(() => import('./PremiumTools'));
 import { buildWeeklyInsights } from './weeklyInsights';
 import RestTimer from './RestTimer';
 import StrengthIntervalTimer from './StrengthIntervalTimer';
@@ -49,8 +51,9 @@ import {
 import type { JournalEntity, JournalRecord } from '@workspace/api-client-react';
 import { LiveWorkoutOverlay, WorkoutCountdown, WorkoutSelectionCards } from './LiveWorkoutUI';
 import { boundedNumber, bounds, plainText } from './inputSafety';
+import { initialPremium, PREMIUM_KEY, validPremium, type PremiumState } from './premiumState';
 
-type View = 'dashboard' | 'macros' | 'workout' | 'steps' | 'insights' | 'plan';
+type View = 'dashboard' | 'macros' | 'workout' | 'steps' | 'insights' | 'plan' | 'tools';
 type Profile = { name: string; goal: string; weight: number; height: number; calorieTarget: number; proteinTarget: number; carbsTarget: number; fatTarget: number; stepTarget: number };
 type MacroLog = { id: string; meal: string; name?: string; provenance?: string; calories: number; protein: number; carbs: number; fat: number; time: string; date?: string };
 type SetType = 'warmup' | 'working' | 'drop' | 'failure';
@@ -103,6 +106,7 @@ const navItems: { id: View; label: string; icon: LucideIcon }[] = [
   { id: 'steps', label: 'Movement', icon: Footprints },
   { id: 'insights', label: 'Insights', icon: ChartNoAxesCombined },
   { id: 'plan', label: 'My plan', icon: Target },
+  { id: 'tools', label: 'Tools', icon: BookOpen },
 ];
 
 function dateKey(date: Date) {
@@ -157,6 +161,13 @@ function readProfile(): Profile {
     fatTarget: getNumber('fatTarget', 1, bounds.macros, true),
     stepTarget: getNumber('stepTarget', 1000, 100000, true),
   };
+}
+
+function readPremiumPreferences(): PremiumState {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(PREMIUM_KEY) ?? 'null');
+    return validPremium(value) ? value : initialPremium;
+  } catch { return initialPremium; }
 }
 
 function readDailyCounts(key: string, max: number): StepsMap {
@@ -409,6 +420,8 @@ function formatAmount(value: number) {
 
 function App() {
   const [view, setView] = useState<View>('dashboard');
+  const [visitedTools, setVisitedTools] = useState(false);
+  const [premiumState, setPremiumState] = useState<PremiumState>(readPremiumPreferences);
   const [weekOffset, setWeekOffset] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -428,6 +441,7 @@ function App() {
   const [strideOverrideCm, setStrideOverrideCm] = useState<number | null>(readStrideOverride);
   const strideCm = strideOverrideCm ?? Math.round(profile.height * 0.415);
   const [toast, setToast] = useState('');
+  const [deletedMealUndo, setDeletedMealUndo] = useState<MacroLog | null>(null);
   const [restSession, setRestSession] = useState<{ id: string; exercise: string; setType: SetType } | null>(null);
   const [prCelebration, setPrCelebration] = useState<{ set: WorkoutSet; oneRmRecord: boolean; weightRecord: boolean } | null>(null);
   const [storageError, setStorageError] = useState(false);
@@ -653,12 +667,13 @@ function App() {
   useEffect(() => { persist(STORAGE.strideOverride, strideOverrideCm); }, [strideOverrideCm]);
   useEffect(() => {
     if (!toast) return undefined;
-    const timer = window.setTimeout(() => setToast(''), 3200);
+    const timer = window.setTimeout(() => { setToast(''); }, 5200);
     return () => window.clearTimeout(timer);
   }, [toast]);
 
   const navigate = (nextView: View) => {
     setView(nextView);
+    if (nextView === 'tools') setVisitedTools(true);
     setMobileNavOpen(false);
     window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 0);
   };
@@ -692,6 +707,8 @@ function App() {
     setToast('Workout saved to your Movement history.');
   };
 
+  const activeTargets = premiumState.dayMode === 'standard' ? profile : premiumState.dayTargets[premiumState.dayMode];
+  const displayProfile = { ...profile, ...activeTargets };
   const todayMacros = macros.filter((meal) => meal.date === currentDate);
   const visibleSteps = paired.key && paired.data ? { ...steps, ...paired.stepTotals } : steps;
   const todaySteps = visibleSteps[currentDate] ?? 0;
@@ -703,7 +720,7 @@ function App() {
   const workoutCount = workouts.filter((item) => item.date === currentDate).length;
   const weeklyInsight = view === 'insights' ? buildWeeklyInsights({
     todayKey: currentDate, weekOffset, steps: visibleSteps, water: waterHistory, meals: macros, workouts,
-    stepGoal: profile.stepTarget, waterGoal, calorieGoal: profile.calorieTarget,
+    stepGoal: profile.stepTarget, waterGoal, calorieGoal: activeTargets.calorieTarget,
   }) : null;
 
   const saveProfile = (nextProfile: Profile) => {
@@ -724,6 +741,33 @@ function App() {
     setMacros((existing) => [{ ...log, meal, date: loggedDate }, ...existing]);
     setCurrentDate(loggedDate);
     setToast(`${meal} added to today.`);
+  };
+  const updateMeal = (id: string, draft: { meal: string; name?: string; calories: number; protein: number; carbs: number; fat: number }) => {
+    const name = plainText(draft.name ?? draft.meal, 120);
+    if (!name || !boundedNumber(draft.calories, 0.01, bounds.calories) ||
+      ![draft.protein, draft.carbs, draft.fat].every((amount) => boundedNumber(amount, 0, bounds.macros))) {
+      setToast('Meal was not updated. Check the name and nutrition values.');
+      return;
+    }
+    setMacros((existing) => existing.map((item) => item.id === id ? { ...item, meal: draft.meal, name, calories: draft.calories, protein: draft.protein, carbs: draft.carbs, fat: draft.fat } : item));
+    setToast('Meal updated.');
+  };
+  const deleteMeal = (id: string) => {
+    const found = macros.find((item) => item.id === id);
+    if (!found) return;
+    setDeletedMealUndo(found);
+    setMacros((existing) => existing.filter((item) => item.id !== id));
+    setToast('Meal removed.');
+  };
+  const undoMealDelete = () => {
+    if (!deletedMealUndo) return;
+    setMacros((existing) => existing.some((item) => item.id === deletedMealUndo.id) ? existing : [deletedMealUndo, ...existing]);
+    setDeletedMealUndo(null);
+    setToast('Meal restored.');
+  };
+  const applyDayTargets = (targets: { calorieTarget: number; proteinTarget: number; carbsTarget: number; fatTarget: number }) => {
+    setProfile((existing) => ({ ...existing, ...targets }));
+    setToast('Base nutrition targets saved.');
   };
   const openProfile = (event: ReactMouseEvent<HTMLButtonElement>) => {
     profileTriggerRef.current = event.currentTarget;
@@ -783,21 +827,26 @@ function App() {
           <div className="fp-page">
             {view === 'dashboard' && (
               <PremiumDashboard
-                profile={profile}
+                profile={displayProfile}
                 calories={calories}
                 protein={protein}
                 carbs={carbs}
                 fat={fat}
                 todaySteps={todaySteps}
                 workoutCount={workoutCount}
+                waterMl={todayWater}
+                waterGoal={waterGoal}
                 macros={todayMacros}
                 onNavigate={navigate}
                 onAddMeal={addMeal}
+                onOpenTools={() => navigate('tools')}
+                metrics={premiumState.settings.metrics}
+                shortcuts={premiumState.settings.shortcuts}
               />
             )}
             {view === 'macros' && (
               <MacrosPage
-                profile={profile}
+                profile={displayProfile}
                 logs={todayMacros}
                 waterMl={todayWater}
                  waterGoal={waterGoal}
@@ -808,11 +857,8 @@ function App() {
                   setCurrentDate(day);
                 }}
                 onAdd={addMeal}
-                onDelete={(id) => { setMacros((existing) => existing.filter((item) => item.id !== id)); setToast('Meal removed.'); }}
-                onSaveTargets={(targets) => {
-                  setProfile((existing) => ({ ...existing, ...targets }));
-                  setToast('Daily macro targets saved.');
-                }}
+                 onDelete={deleteMeal}
+                onSaveTargets={applyDayTargets}
               />
             )}
             {/* Keep the timer mounted so a running interval survives switching sections. */}
@@ -846,7 +892,7 @@ function App() {
               />
             </div>
             {view === 'steps' && (
-              <MovementPage
+              <Suspense fallback={<div className="fp-loading-state" role="status" aria-live="polite">Loading movement history…</div>}><MovementPage
                 onStartWorkout={startWorkout}
                 workoutActive={!!liveWorkouts.active || !!liveWorkouts.countdown}
                 workoutSessions={liveWorkouts.sessions}
@@ -890,17 +936,17 @@ function App() {
                   if (paired.key) void paired.saveSettings(goal, strideOverride ?? Math.round(height * 0.415), weight);
                   else setToast('Movement settings saved.');
                 }}
-              />
+              /></Suspense>
             )}
             {view === 'insights' && weeklyInsight && (
               <>
-                <WeeklyInsightsPage insight={weeklyInsight} weekOffset={weekOffset}
+                <Suspense fallback={<div className="fp-loading-state" role="status" aria-live="polite">Loading your weekly summary…</div>}><WeeklyInsightsPage insight={weeklyInsight} weekOffset={weekOffset}
                   onWeekChange={setWeekOffset}
                   onNavigate={navigate}
-                />
-                <AdvancedAnalytics currentDate={currentDate} meals={macros} steps={visibleSteps}
-                  workouts={workouts} completedWorkouts={[...completedWorkouts, ...liveWorkouts.sessions.map((session) => ({ date: dateKey(new Date(session.endedAt)) }))]} weightHistory={weightHistory} calorieTarget={profile.calorieTarget}
-                  proteinTarget={profile.proteinTarget}
+                /></Suspense>
+                <Suspense fallback={<div className="fp-loading-state" role="status" aria-live="polite">Loading detailed analytics…</div>}><AdvancedAnalytics currentDate={currentDate} meals={macros} steps={visibleSteps}
+                  workouts={workouts} completedWorkouts={[...completedWorkouts, ...liveWorkouts.sessions.map((session) => ({ date: dateKey(new Date(session.endedAt)) }))]} weightHistory={weightHistory} calorieTarget={activeTargets.calorieTarget}
+                  proteinTarget={activeTargets.proteinTarget}
                   onLogWeight={(weightKg) => {
                     const next = { ...weightHistory, [todayKey()]: weightKg };
                     window.localStorage.setItem(STORAGE.weights, JSON.stringify(next));
@@ -909,7 +955,7 @@ function App() {
                     if (paired.key) void paired.saveSettings(profile.stepTarget, strideCm, weightKg);
                     setCurrentDate(todayKey());
                   }}
-                />
+                /></Suspense>
               </>
             )}
             {view === 'plan' && (
@@ -930,6 +976,67 @@ function App() {
                 }}
               />
             )}
+            {visitedTools && <div hidden={view !== 'tools'} aria-hidden={view !== 'tools'}><Suspense fallback={<div className="fp-loading-state" role="status" aria-live="polite">Loading your personal tools…</div>}>
+              <PremiumTools
+                premium={premiumState}
+                onPremiumChange={(change) => setPremiumState((previous) => typeof change === 'function' ? change(previous) : change)}
+                profile={profile}
+                meals={macros.map((meal) => ({ ...adaptLegacyWebMealToJournal({ ...meal }), date: meal.date ?? currentDate })) as Array<MacroLog & { name: string; date: string }>}
+                sets={workouts}
+                completed={completedWorkouts}
+                water={waterHistory}
+                weights={weightHistory}
+                steps={visibleSteps}
+                today={currentDate}
+                onAddMeal={(meal) => addMeal({ id: `meal-${Date.now()}-${crypto.randomUUID()}`, ...meal, time: new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date()) })}
+                onUpdateMeal={updateMeal}
+                onDeleteMeal={deleteMeal}
+                onUndoDelete={undoMealDelete}
+                canUndoDelete={deletedMealUndo !== null}
+                onAddSet={(set) => {
+                  const workoutSet = { ...set, estimatedOneRm: calculatedOneRm(set) };
+                  const previous = workouts.filter((item) => item.exercise.trim().toLowerCase() === set.exercise.trim().toLowerCase());
+                  const oneRmRecord = previous.length > 0 && calculatedOneRm(workoutSet) > Math.max(...previous.map(calculatedOneRm));
+                  const weightRecord = previous.length > 0 && set.weight > Math.max(...previous.map((item) => item.weight));
+                  setWorkouts((existing) => [workoutSet, ...existing]);
+                  if (set.setType === 'working') setRestSession({ id: set.id, exercise: set.exercise, setType: 'working' });
+                  if (oneRmRecord || weightRecord) setPrCelebration({ set: workoutSet, oneRmRecord, weightRecord });
+                  setToast(oneRmRecord || weightRecord ? 'New personal record!' : set.setType === 'working' ? 'Set logged. Rest timer started.' : 'Set logged.');
+                }}
+                onFinish={(setIds) => {
+                  setCompletedWorkouts((existing) => [{ id: crypto.randomUUID(), date: currentDate, completedAt: Date.now(), setIds }, ...existing]);
+                  setToast('Guided workout marked complete.');
+                }}
+                onApplyTargets={applyDayTargets}
+                onRestoreProfile={(value) => {
+                  const restored = validateRemoteProfile(value);
+                  if (restored) {
+                    setProfile(restored);
+                    if (boundedNumber(value.waterGoalMl, 100, 20000, true)) setWaterGoal(value.waterGoalMl);
+                    setToast('Backup profile and base targets restored.');
+                  }
+                }}
+                onJournalRestore={(records) => {
+                  setMacros(records.meals.map((meal) => ({
+                    ...meal, meal: meal.meal, name: meal.name ?? meal.meal, date: meal.date ?? currentDate,
+                  })));
+                  setWorkouts(records.sets.map((set) => ({ ...set, estimatedOneRm: calculatedOneRm(set) })));
+                  setCompletedWorkouts(records.completed);
+                  setWaterHistory(records.water);
+                  setWeightHistory(records.weights);
+                }}
+                sessions={liveWorkouts.sessions}
+                onSessionsRestore={(incoming) => {
+                  const existing = liveWorkouts.sessions;
+                  const valid = incoming.map((entry) => objectValue(entry) ? adaptLiveWorkoutForWebsite(entry) : entry)
+                    .filter((entry): entry is WorkoutHistoryEntry => validWorkoutHistoryEntry(entry));
+                  const ids = new Set(existing.map((session) => session.id));
+                  liveWorkouts.replaceSessions([...existing, ...valid.filter((session) => !ids.has(session.id))]);
+                }}
+                onDraftRestore={(draft) => { liveWorkouts.restoreDraft(draft, strideCm, profile.weight); }}
+                onNavigate={navigate}
+              />
+            </Suspense></div>}
           </div>
         </main>
       </div>
@@ -957,7 +1064,7 @@ function App() {
                 : 'Motion data is unavailable. Time is still tracked, but distance and pace cannot be estimated without detected steps.'}
         onPause={pauseWorkout} onResume={resumeWorkout} onEnd={endWorkout} />}
       {liveWorkouts.error && <div className="lw-storage-error" role="alert" data-testid="error-live-workout">{liveWorkouts.error}</div>}
-      {toast && <div className={`fp-toast${restSession ? ' fp-toast-with-rest' : ''}`} role="status" data-testid="status-toast"><Check size={16} /> {toast}</div>}
+      {toast && <div className={`fp-toast${restSession ? ' fp-toast-with-rest' : ''}`} role="status" data-testid="status-toast"><Check size={16} /> {toast}{deletedMealUndo && <button type="button" className="fp-toast-undo" onClick={undoMealDelete} data-testid="button-undo-meal-delete">Undo</button>}</div>}
     </div>
   );
 }
@@ -1015,7 +1122,7 @@ function EmptyState({ icon: Icon, title, text, action, onClick }: { icon: Lucide
 }
 
 function MealRow({ meal, onDelete }: { meal: MacroLog; onDelete?: (id: string) => void }) {
-  return <div className="log-row" data-testid={`row-meal-${meal.id}`}><span className="log-dot" /><div className="log-copy"><strong>{meal.meal}</strong><span>{meal.protein}g protein · {meal.carbs}g carbs · {meal.fat}g fat</span></div><span className="log-value">{meal.calories} kcal</span>{onDelete && <button className="delete-button" onClick={() => onDelete(meal.id)} aria-label={`Delete ${meal.meal}`} data-testid={`button-delete-meal-${meal.id}`}><Trash2 size={15} /></button>}</div>;
+  return <div className="log-row" data-testid={`row-meal-${meal.id}`}><span className="log-dot" /><div className="log-copy"><strong>{meal.name ?? meal.meal}</strong><span>{meal.protein}g protein · {meal.carbs}g carbs · {meal.fat}g fat</span></div><span className="log-value">{meal.calories} kcal</span>{onDelete && <button className="delete-button" onClick={() => onDelete(meal.id)} aria-label={`Delete ${meal.name ?? meal.meal}`} data-testid={`button-delete-meal-${meal.id}`}><Trash2 size={15} /></button>}</div>;
 }
 
 function MacrosPage({

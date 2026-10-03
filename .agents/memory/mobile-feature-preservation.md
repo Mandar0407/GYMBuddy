@@ -14,3 +14,9 @@ Indoor and outdoor walks belong in Movement, not Log / Strength. Keep their sess
 **Why:** The user explicitly corrected the placement because walking is related to step counting.
 
 **How to apply:** Preserve that distinction when reorganising workouts or navigation, without duplicating or resetting active sessions.
+
+Use mobile as the functional reference when closing gaps in the website, without redesigning either version.
+
+**Why:** The user said the app looks good and they are happy with it, but mobile has everything while the website is still missing many features.
+
+**How to apply:** Bring over the real tools and persistence behavior, not just matching labels. Explain native-only sensor limits honestly; feature availability does not imply advanced device-local libraries sync between devices.

@@ -33,6 +33,7 @@ type Profile = {
 type MacroLog = {
   id: string;
   meal: string;
+  name?: string;
   calories: number;
   protein: number;
   carbs: number;
@@ -48,9 +49,14 @@ type PremiumDashboardProps = {
   fat: number;
   todaySteps: number;
   workoutCount: number;
+  waterMl: number;
+  waterGoal: number;
   macros: MacroLog[];
   onNavigate: (view: 'dashboard' | 'macros' | 'workout' | 'steps' | 'insights' | 'plan') => void;
   onAddMeal: (meal: MacroLog) => void;
+  onOpenTools: () => void;
+  metrics: string[];
+  shortcuts: string[];
 };
 
 const mealOptions = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
@@ -75,9 +81,14 @@ export default function PremiumDashboard({
   fat,
   todaySteps,
   workoutCount,
+  waterMl,
+  waterGoal,
   macros,
   onNavigate,
   onAddMeal,
+  onOpenTools,
+  metrics,
+  shortcuts,
 }: PremiumDashboardProps) {
   const [mealDialogOpen, setMealDialogOpen] = useState(false);
   const [mealForm, setMealForm] = useState({ meal: '', calories: '', protein: '', carbs: '', fat: '' });
@@ -170,6 +181,7 @@ export default function PremiumDashboard({
             <h1><span>Your day.</span><span className="fp-heading-accent">In progress.</span></h1>
             <p data-testid="text-dashboard-greeting"><strong>{profile.name.split(' ')[0]},</strong> see your fuel, movement and strength at a glance.</p>
           </div>
+          <button className="fp-text-action" type="button" onClick={onOpenTools} data-testid="button-open-personal-tools">Personal tools <ArrowRight size={14} /></button>
         </header>
 
         <section className="fp-coach-card" id="premium-focus" data-testid="card-daily-ritual">
@@ -196,26 +208,45 @@ export default function PremiumDashboard({
         </div>
 
         <section className="fp-stat-strip" aria-label="Today's progress">
-          <article className="fp-stat fp-stat-calories" data-testid="card-metric-calories">
+          {metrics.includes('calories') && <article className="fp-stat fp-stat-calories" data-testid="card-metric-calories">
             <div className="fp-stat-top"><span className="fp-stat-icon"><Flame size={16} /></span><span>FOOD</span></div>
             <strong data-testid="text-metric-calories">{formatAmount(calories)}<small> kcal</small></strong>
             <div className="fp-stat-foot"><span>{calorieProgress}% of daily target</span><span>{caloriesRemaining >= 0 ? `${formatAmount(caloriesRemaining)} left` : `${formatAmount(Math.abs(caloriesRemaining))} over`}</span></div>
             <div className="fp-mini-track"><i style={{ width: `${calorieProgress}%` }} /></div>
-          </article>
-          <article className="fp-stat fp-stat-protein" data-testid="card-metric-protein">
+          </article>}
+          {metrics.includes('protein') && <article className="fp-stat fp-stat-protein" data-testid="card-metric-protein">
             <div className="fp-stat-top"><span className="fp-stat-icon"><Target size={16} /></span><span>PROTEIN</span></div>
             <strong data-testid="text-metric-protein">{formatAmount(protein)}<small> g</small></strong>
             <div className="fp-stat-foot"><span>Fuel for strength</span><span>{proteinRemaining >= 0 ? `${formatAmount(proteinRemaining)}g left` : `${formatAmount(Math.abs(proteinRemaining))}g over`}</span></div>
             <div className="fp-mini-track"><i style={{ width: `${profile.proteinTarget > 0 ? Math.min(100, (protein / profile.proteinTarget) * 100) : 0}%` }} /></div>
-          </article>
-          <article className="fp-stat fp-stat-steps" id="premium-movement" data-testid="card-metric-steps">
+          </article>}
+          {metrics.includes('steps') && <article className="fp-stat fp-stat-steps" id="premium-movement" data-testid="card-metric-steps">
             <div className="fp-stat-top"><span className="fp-stat-icon"><Footprints size={16} /></span><span>MOVEMENT</span></div>
             <strong data-testid="text-metric-steps">{todaySteps.toLocaleString()}<small> steps</small></strong>
             <div className="fp-stat-foot"><span>{stepsProgress}% of daily goal</span><span>{stepsRemaining >= 0 ? `${stepsRemaining.toLocaleString()} to go` : `${Math.abs(stepsRemaining).toLocaleString()} over`}</span></div>
             <div className="fp-mini-track"><i style={{ width: `${stepsProgress}%` }} /></div>
-          </article>
+          </article>}
+          {metrics.includes('water') && <article className="fp-stat fp-stat-steps" data-testid="card-metric-water">
+            <div className="fp-stat-top"><span className="fp-stat-icon"><Activity size={16} /></span><span>HYDRATION</span></div>
+            <strong>{waterMl.toLocaleString()}<small> ml</small></strong>
+            <div className="fp-stat-foot"><span>Daily water</span><span>{Math.max(0, waterGoal-waterMl).toLocaleString()} ml to go</span></div>
+            <div className="fp-mini-track"><i style={{ width: `${waterGoal > 0 ? Math.min(100, (waterMl/waterGoal)*100) : 0}%` }} /></div>
+          </article>}
+          {metrics.includes('strength') && <article className="fp-stat fp-stat-protein" data-testid="card-metric-strength">
+            <div className="fp-stat-top"><span className="fp-stat-icon"><Dumbbell size={16} /></span><span>STRENGTH</span></div>
+            <strong>{workoutCount}<small> sets</small></strong>
+            <div className="fp-stat-foot"><span>Logged today</span><span>Keep your rhythm</span></div>
+            <div className="fp-mini-track"><i style={{ width: `${Math.min(100, workoutCount*12)}%` }} /></div>
+          </article>}
         </section>
 
+        <nav className="fp-dashboard-shortcuts" aria-label="Today shortcuts">
+          {shortcuts.map((shortcut) => {
+            const route = ({ Nutrition: 'macros', Strength: 'workout', Movement: 'steps', Insights: 'insights', 'My plan': 'plan' } as const)[shortcut as 'Nutrition'|'Strength'|'Movement'|'Insights'|'My plan'];
+            return <button type="button" key={shortcut} onClick={() => { if (route) onNavigate(route); }}>{shortcut}<ArrowRight size={13} /></button>;
+          })}
+          <button type="button" onClick={onOpenTools}>Personal tools<ArrowRight size={13} /></button>
+        </nav>
         <FastingCard />
         <button type="button" className="fp-analytics-link" onClick={() => onNavigate('insights')} data-testid="button-dashboard-weekly-analytics">
           <span><strong>Your last 7 days</strong><small>Food, weight, steps &amp; strength — from your journal.</small></span><span>See trends <ArrowRight size={16} aria-hidden="true" /></span>
@@ -258,7 +289,7 @@ export default function PremiumDashboard({
                 {macros.slice(0, 4).map((meal, index) => (
                   <div className="fp-meal-row" key={meal.id} data-testid={`row-meal-${meal.id}`}>
                     <span className={`fp-meal-marker fp-meal-marker-${index % 2}`}><Utensils size={15} /></span>
-                    <span className="fp-meal-copy"><strong>{meal.meal}</strong><small><Clock3 size={11} /> {meal.time} <i>·</i> P {formatAmount(meal.protein)}g <i>·</i> C {formatAmount(meal.carbs)}g <i>·</i> F {formatAmount(meal.fat)}g</small></span>
+                    <span className="fp-meal-copy"><strong>{meal.name ?? meal.meal}</strong><small><Clock3 size={11} /> {meal.time} <i>·</i> P {formatAmount(meal.protein)}g <i>·</i> C {formatAmount(meal.carbs)}g <i>·</i> F {formatAmount(meal.fat)}g</small></span>
                     <strong className="fp-meal-kcal">{formatAmount(meal.calories)} <small>kcal</small></strong>
                   </div>
                 ))}
@@ -277,12 +308,12 @@ export default function PremiumDashboard({
           </section>
         </div>
 
-        <section className="fp-strength-card" id="premium-strength" data-testid="card-metric-strength-work">
+        {metrics.includes('strength') && <section className="fp-strength-card" id="premium-strength" data-testid="card-metric-strength-work">
           <div className="fp-strength-icon"><Dumbbell size={19} /></div>
           <div className="fp-strength-copy"><span className="fp-overline">STRENGTH SESSION</span><h3>{workoutCount ? 'Strength work, captured.' : 'A fresh start for strength.'}</h3><p>{workoutCopy}</p></div>
           <div className="fp-strength-count"><strong data-testid="text-metric-strength-work">{workoutCount}</strong><span>{workoutCount === 1 ? 'SET LOGGED' : 'SETS LOGGED'}</span></div>
           <button type="button" onClick={() => onNavigate('workout')} data-testid="button-view-workout-details">View workout <ArrowRight size={15} /></button>
-        </section>
+        </section>}
 
         <footer className="fp-footer"><span style={{display:'inline-flex',alignItems:'center',gap:7}}><BrandMark size={16} /><span className="fp-wordmark"><span className="fp-wm-gym">GYM</span> <span className="fp-wm-buddy" style={{color:'inherit'}}>Buddy</span></span></span><span>Built around your life, not the other way around.</span></footer>
       </div>
