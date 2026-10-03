@@ -42,3 +42,45 @@ mtime_ms = 1791052100621
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:f20fccba-b9f2-40ab-973f-ec0c4df86162/88d1bacc-dc19-4408-900e-95bfbe4a92b3/9e9519af-8944-49af-9d69-f3da5eba94d0"
 storage_version_token = "1791052152844587"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "LB303eM8LUBWVzOQblSx5"
+uri = "file://screenshots/gym-buddy-feature-highlights.zip"
+type = "unspecified"
+title = "GYM Buddy — 10 feature-highlight images"
+description = "Branded listing graphics featuring water logging, fasting, barcode nutrition, meal entry, macros, recipes, favourites, intervals, guided routines and exercise alternatives. Each PNG is 1320 × 2868. Uses Expo preview captures; verify against native iOS before submission."
+logical_id = "10364bdc-cc28-4e5b-979a-6938c4c13e17"
+content_hash = "sha256:b8233d75120a8eac2190bf0c53d50bcb0708a208c98a22799c621413ff278034"
+size = 4564805
+mtime_ms = 1791052867369
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:f20fccba-b9f2-40ab-973f-ec0c4df86162/10364bdc-cc28-4e5b-979a-6938c4c13e17/57c28441-dca8-481a-bb75-2bc19f50ae12"
+storage_version_token = "1791052914773832"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "d9TZ1Ewu9KpTM8AQR94Is"
+uri = "file://screenshots/gym-buddy-highlights/listing-overview.jpg"
+type = "image"
+title = "See all 10 feature highlights"
+description = "Overview of the new promotional screenshot set. For reviewing the collection, not for uploading as an App Store screenshot."
+logical_id = "c2a582f9-e6df-4699-bd57-927b56f5822a"
+content_hash = "sha256:06e576851ddbff04b683137a0994d6aeba9bed5f673bcdc92844a6a1e0ed4e33"
+size = 285984
+mtime_ms = 1791052870333
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:f20fccba-b9f2-40ab-973f-ec0c4df86162/c2a582f9-e6df-4699-bd57-927b56f5822a/75109ec1-36f7-4536-b13b-f1268a6bded2"
+storage_version_token = "1791052916069367"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "Eg8u1cKECTYrMk_0wZO2d"
+uri = "file://screenshots/gym-buddy-feature-plain-screenshots.zip"
+type = "unspecified"
+title = "Plain screenshots — without headlines"
+description = "The same ten feature screens without promotional framing. RGB PNGs, 1320 × 2868; captured from an isolated Expo web preview with example data."
+logical_id = "bc40fd83-405e-4b15-8db5-b52cac39e37d"
+content_hash = "sha256:99e01a347be339ff7d39e570bbc8cb23e04a2b2eaa865ff37e3a7f6936ebabde"
+size = 1831151
+mtime_ms = 1791052867433
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:f20fccba-b9f2-40ab-973f-ec0c4df86162/bc40fd83-405e-4b15-8db5-b52cac39e37d/6d89e702-6ef9-4f4a-ac12-ffb16dc64e87"
+storage_version_token = "1791052917405207"
+content_type = "application/octet-stream"
