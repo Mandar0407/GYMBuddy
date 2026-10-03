@@ -126,3 +126,31 @@ mtime_ms = 1791053310985
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:f20fccba-b9f2-40ab-973f-ec0c4df86162/97c09822-4e99-4be8-9896-59640a6eff27/8a6d78a0-7fe8-4491-9f86-a4b4c85856e4"
 storage_version_token = "1791053352157523"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "4hQA8qeaLVywDixXj8w4Y"
+uri = "file://screenshots/gym-buddy-6.5-inch-15-highlights.zip"
+type = "unspecified"
+title = "Corrected screenshots — iPhone 6.5-inch"
+description = "All 15 approved feature designs resized to 1242 × 2688 RGB PNGs for the upload slot shown in your error. Unzip and choose up to 10 images."
+logical_id = "ce5ae069-8785-4603-aac2-5d783e4a1976"
+content_hash = "sha256:5bcbea166a971d41c5e0adb107971d19e204c250d5aefe8d5419ed0f112b30dc"
+size = 17167466
+mtime_ms = 1791056972989
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:f20fccba-b9f2-40ab-973f-ec0c4df86162/ce5ae069-8785-4603-aac2-5d783e4a1976/67e7d35a-8f3f-4e69-a505-2e487515bf04"
+storage_version_token = "1791056993013476"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "R8SCdf92krJz_xJB-nsb3"
+uri = "file://screenshots/gym-buddy-6.5-inch-15-plain-screenshots.zip"
+type = "unspecified"
+title = "Corrected plain screenshots — iPhone 6.5-inch"
+description = "Optional plain versions, also verified at 1242 × 2688. Expo preview captures; check against the final native iOS build before submission."
+logical_id = "4d92a3fd-8764-4af1-8c5a-06ede811d379"
+content_hash = "sha256:f815c630cb327a974219421d4bf32df60736277dace23f1f386e0b30c291bacc"
+size = 5167158
+mtime_ms = 1791056983925
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:f20fccba-b9f2-40ab-973f-ec0c4df86162/4d92a3fd-8764-4af1-8c5a-06ede811d379/1b4205df-62b2-4942-bbd3-c47a3091e440"
+storage_version_token = "1791056994410500"
+content_type = "application/octet-stream"
