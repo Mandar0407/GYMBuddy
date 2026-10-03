@@ -1,0 +1,65 @@
+Bro, we’ll keep every existing feature. To make GYM Buddy more premium and advanced, I’d improve how the features look, work together, and respond—not replace them.
+
+Here’s the upgrade direction I’d recommend.
+
+1. Refine our existing visual identity
+Keep cream backgrounds, charcoal surfaces, and lime accents, but use them more deliberately:
+
+Charcoal for the most important progress or active-workout cards.
+Lime for primary actions, selected controls, and meaningful progress.
+Softer borders and fewer heavy shadows.
+Consistent spacing, corner shapes, and icon sizes.
+Large, readable numbers with smaller supporting labels.
+A matching dark mode—not simply inverted colours.
+Avoid: glass effects everywhere, excessive gradients, tiny text, or making every card visually dominant.
+
+2. Give each screen a more polished layout
+Screen	Recommended upgrade
+Today	A strong daily-summary card, compact metric row, “Continue where you left off,” and shortcuts to all existing sections.
+Nutrition	Clear progress toward targets, faster portion controls, recent meals, and a better organised meal history.
+Strength	A dedicated active-workout view with the current exercise, previous results, next set, and rest timer.
+Movement	More readable progress, clearer tracking status, and well-separated history and settings.
+Insights	A weekly summary first, then all existing charts and detailed records below it.
+Plan	Group related inputs, improve result presentation, and clearly explain what applying a plan changes.
+Nothing disappears. Lower-priority details can be grouped into clearly labelled sections, while common actions remain easy to reach.
+
+3. Add advanced features with everyday value
+For training
+Saved workout routines with an editable exercise order.
+Repeat a previous session, showing previous weights and reps.
+Warm-up, working, and drop-set labels where not already supported.
+Adjustable rest timers with quick extensions.
+Plate calculator, using your uploaded component after fixing its validation.
+Exercise substitutions based on available equipment.
+For nutrition
+Favourite meals and saved recipes.
+Repeat a meal with a different portion size.
+Quick macro entry without a food search.
+Barcode scanning, with nutrition values reviewed before saving.
+Optional training-day and rest-day targets.
+Across the app
+A calendar journal combining recorded activity by date.
+Customisable Today metrics and shortcuts.
+Export and restore with careful duplicate handling.
+Private, optional progress-photo comparisons.
+These are proposals—not claims that they’re already implemented.
+
+4. Make the interactions feel premium
+Bottom sheets for quick entry; full screens for longer tasks.
+Subtle haptics when a set is logged or a workout finishes.
+Smooth, short transitions that respect reduced-motion settings.
+Clear loading, saving, success, and error states.
+Undo after deleting an entry.
+Preserve form drafts and unfinished sessions.
+Keep focused inputs visible when the keyboard opens.
+A premium app should feel responsive without constantly animating.
+
+5. Make reliability visible
+This matters as much as appearance:
+
+Show whether data is saved locally, syncing, or synced.
+Make failed saves retryable.
+Restore unfinished workouts after reopening.
+Prevent invalid goals from replacing valid ones.
+Confirm that every feature remains reachable through native scrolling on both platforms.
+The latest scrolling change still needs native confirmation; I’d resolve that before a larger visual upgrade.
