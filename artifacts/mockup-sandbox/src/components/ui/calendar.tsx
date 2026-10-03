@@ -129,7 +129,20 @@ function Calendar({
           return (
             <div
               data-slot="calendar"
-              ref={rootRef}
+              ref={(node) => {
+                // Bridge library React types while preserving ref cleanup.
+                if (typeof rootRef === "function") {
+                  const cleanup = rootRef(node)
+                  if (typeof cleanup === "function") {
+                    return () => {
+                      cleanup()
+                    }
+                  }
+                } else if (rootRef) {
+                  rootRef.current = node
+                }
+                return undefined
+              }}
               className={cn(className)}
               {...props}
             />
