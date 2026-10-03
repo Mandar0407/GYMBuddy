@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { withJournalStorageLock } from './journalStorageLock';
+import {upgradeSampleProfile}from'@/lib/defaultFitnessProfile';
 import {
   applyJournalChanges,
   getJournal,
@@ -65,6 +66,8 @@ const MEAL_TEMPLATES_KEY = '@fitpulse/mobile/meal-templates/v1';
 const LIVE_WORKOUT_HISTORY_KEY = 'fitpulse-workout-sessions';
 const LIVE_WORKOUT_DRAFT_KEY = 'fitpulse-active-workout';
 const FINGERPRINT_DEFAULT_PROFILE = {
+  // Only the old demo is a disposable sync placeholder. Creator-provided
+  // defaults are intentional preferences, not permission to restore demo data.
   name: 'Maya Chen', goal: 'Build strength', weight: 68, height: 170,
   calorieTarget: 2200, proteinTarget: 110, carbsTarget: 250, fatTarget: 70,
   stepTarget: 10000,
@@ -422,7 +425,7 @@ function applyRemote(state: FitnessState, record: JournalRecord): FitnessState {
     case 'nutritionGoals':
       return { ...state, profile: { ...state.profile, ...data } };
     case 'profile':
-      return { ...state, profile: { ...state.profile, ...data } };
+      return { ...state, profile: { ...state.profile, ...upgradeSampleProfile(data) } };
     case 'waterGoal':
       return { ...state, profile: { ...state.profile, waterGoalMl: data.goalMl as number } };
     default:

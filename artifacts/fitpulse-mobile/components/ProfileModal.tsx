@@ -22,6 +22,8 @@ type ProfileForm = {
   height: string;
   calorieTarget: string;
   stepTarget: string;
+  age: string;
+  sex: FitnessProfile['sex'];
 };
 
 type Props = {
@@ -57,6 +59,8 @@ export default function ProfileModal({ profile, visible, onClose, onSave, stepTa
     height: String(profile.height || 170),
     calorieTarget: String(profile.calorieTarget),
     stepTarget: String(profile.stepTarget),
+    age: String(profile.age),
+    sex: profile.sex,
   }));
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -70,6 +74,8 @@ export default function ProfileModal({ profile, visible, onClose, onSave, stepTa
       height: String(profile.height || 170),
       calorieTarget: String(profile.calorieTarget),
       stepTarget: String(profile.stepTarget),
+      age: String(profile.age),
+      sex: profile.sex,
     });
     setError('');
     setSaving(false);
@@ -81,9 +87,11 @@ export default function ProfileModal({ profile, visible, onClose, onSave, stepTa
     profile.height,
     profile.calorieTarget,
     profile.stepTarget,
+    profile.age,
+    profile.sex,
   ]);
 
-  const update = (key: keyof ProfileForm, value: string) => {
+  const update = (key: Exclude<keyof ProfileForm, 'sex'>, value: string) => {
     setForm(current => ({ ...current, [key]: value }));
     setError('');
   };
@@ -95,6 +103,7 @@ export default function ProfileModal({ profile, visible, onClose, onSave, stepTa
     const height = numberValue(form.height);
     const calorieTarget = numberValue(form.calorieTarget);
     const stepTarget = numberValue(form.stepTarget);
+    const age = numberValue(form.age);
 
     if (!name) {
       setError('Add your name so the ritual feels like yours.');
@@ -110,6 +119,11 @@ export default function ProfileModal({ profile, visible, onClose, onSave, stepTa
       return;
     }
 
+    if (!validInteger(form.age, 14, 90) || (form.sex !== 'male' && form.sex !== 'female')) {
+      setError('Use a whole age from 14–90 and choose Male or Female.');
+      return;
+    }
+
     setSaving(true);
     setError('');
     try {
@@ -118,6 +132,8 @@ export default function ProfileModal({ profile, visible, onClose, onSave, stepTa
         goal: goal || 'Build consistency',
         weight,
         height,
+        age,
+        sex: form.sex,
         calorieTarget,
         proteinTarget: profile.proteinTarget,
         carbsTarget: profile.carbsTarget,
@@ -134,7 +150,7 @@ export default function ProfileModal({ profile, visible, onClose, onSave, stepTa
   };
 
   const field = (
-    key: keyof ProfileForm,
+    key: Exclude<keyof ProfileForm, 'sex'>,
     label: string,
     testID: string,
     options: { placeholder?: string; keyboardType?: 'default' | 'decimal-pad' | 'number-pad'; hint?: string } = {},
@@ -237,6 +253,45 @@ export default function ProfileModal({ profile, visible, onClose, onSave, stepTa
             </View>
             <View style={styles.row}>
               <View style={styles.half}>
+                {field('age', 'Age · years', 'input-profile-age', {
+                  placeholder: '26',
+                  keyboardType: 'number-pad',
+                })}
+              </View>
+              <View style={styles.half}>
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: colors.foreground }]}>Gender</Text>
+                  <View accessibilityRole="radiogroup" style={styles.segment}>
+                    {(['male', 'female'] as const).map(option => {
+                      const selected = form.sex === option;
+                      return (
+                        <Pressable
+                          key={option}
+                          testID={`button-profile-sex-${option}`}
+                          accessibilityRole="radio"
+                          accessibilityState={{ selected }}
+                          accessibilityLabel={option === 'male' ? 'Male' : 'Female'}
+                          onPress={() => { setForm(c => ({ ...c, sex: option })); setError(''); }}
+                          style={[
+                            styles.segmentItem,
+                            {
+                              backgroundColor: selected ? colors.secondaryForeground : colors.background,
+                              borderColor: selected ? colors.secondaryForeground : colors.border,
+                            },
+                          ]}
+                        >
+                          <Text style={[styles.segmentText, { color: selected ? colors.card : colors.foreground }]}>
+                            {option === 'male' ? 'Male' : 'Female'}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              </View>
+            </View>
+            <View style={styles.row}>
+              <View style={styles.half}>
                 {field('calorieTarget', 'Calorie target · kcal', 'input-profile-calories', {
                   placeholder: '2200',
                   keyboardType: 'number-pad',
@@ -312,6 +367,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(27, 35, 29, 0.54)',
   },
   sheet: {
+    flexGrow: 0,
     flexShrink: 1,
     width: '100%',
     maxHeight: '100%',
@@ -320,6 +376,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   content: {
+    flexGrow: 0,
     paddingHorizontal: 22,
     paddingTop: 24,
     paddingBottom: 22,
@@ -365,10 +422,12 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   form: {
+    flexShrink: 0,
     gap: 15,
   },
   row: {
     flexDirection: 'row',
+    flexShrink: 0,
     gap: 12,
   },
   half: {
@@ -376,7 +435,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   field: {
-    flex: 1,
+    flexShrink: 0,
     gap: 7,
   },
   label: {
@@ -393,6 +452,17 @@ const styles = StyleSheet.create({
     fontFamily: 'DMSans_400Regular',
     fontSize: 15,
   },
+  segment: { flexDirection: 'row', gap: 6 },
+  segmentItem: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 48,
+    borderWidth: 1,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentText: { fontFamily: 'DMSans_700Bold', fontSize: 13 },
   error: {
     fontFamily: 'DMSans_400Regular',
     fontSize: 13,

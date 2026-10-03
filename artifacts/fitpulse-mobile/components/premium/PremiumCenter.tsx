@@ -1,5 +1,5 @@
 import React,{useState}from'react';
-import{Pressable,Text,View}from'react-native';
+import{View}from'react-native';
 import{dateKey,useFitness,type MovementSummary}from'@/providers/FitnessProvider';
 import{usePremium}from'@/providers/PremiumProvider';
 import{targetKeys}from'@/lib/premiumLogic';
@@ -17,8 +17,7 @@ export default function PremiumCenter({visible,onClose,movementSummary}:{visible
   const[targetDay,setTargetDay]=useState<'training'|'rest'>('training');
   const[draft,setDraft]=useState<Record<string,string>|null>(null);const[message,setMessage]=useState('');
   const values=draft??Object.fromEntries(targetKeys.map(k=>[k,String(p.dayTargets[targetDay][k])]));
-  const selectDay=(key:string)=>{const d=new Date(`${key}T12:00:00`);setDay(key);setDateInput(key);setMonth(new Date(d.getFullYear(),d.getMonth(),1,12));};
-  const shift=(n:number)=>{const d=new Date(`${day}T12:00:00`);d.setDate(d.getDate()+n);selectDay(dateKey(d));};
+  const shift=(n:number)=>{const d=new Date(`${day}T12:00:00`);d.setDate(d.getDate()+n);setDay(dateKey(d));};
   const meals=fit.meals.filter(m=>m.date===day),sets=fit.sets.filter(s=>s.date===day);
   const steps=movementSummary.week.find(d=>d.date===day)?.steps;
   return <Sheet visible={visible} title="Your personal workspace" onClose={onClose}>
@@ -35,17 +34,13 @@ export default function PremiumCenter({visible,onClose,movementSummary}:{visible
           {Array.from({length:new Date(month.getFullYear(),month.getMonth()+1,0).getDate()},(_,i)=>{
             const key=dateKey(new Date(month.getFullYear(),month.getMonth(),i+1,12));
             const recorded=fit.meals.some(m=>m.date===key)||fit.sets.some(s=>s.date===key)||!!fit.water[key]||fit.weights.some(w=>w.date===key);
-            return <Pressable key={key} accessibilityRole="button" accessibilityState={{selected:key===day}} accessibilityLabel={`${key}${recorded?', with journal records':''}`} testID={`calendar-${key}`} onPress={()=>{setDay(key);setDateInput(key);}}
-              style={{width:'13%',minHeight:44,borderRadius:10,alignItems:'center',justifyContent:'center',gap:3,backgroundColor:key===day?c.accent:c.secondary}}>
-              <Text style={{fontFamily:'DMSans_700Bold',fontSize:14,color:key===day?c.accentForeground:c.secondaryForeground}}>{i+1}</Text>
-              {recorded&&<View style={{width:3,height:3,borderRadius:2,backgroundColor:key===day?c.accentForeground:c.secondaryForeground}}/>}
-            </Pressable>;
+            return <View key={key} style={{width:'13%'}}><Button secondary={key!==day} testID={`calendar-${key}`} onPress={()=>{setDay(key);setDateInput(key);}}>{i+1}{recorded?'·':''}</Button></View>;
           })}
         </View>
         <Copy>Selected: {day}. A dot marks a date with journal records.</Copy>
         <Input label="Date (YYYY-MM-DD)" value={dateInput} onChange={setDateInput} testID="journal-date"/>
         <Button secondary onPress={()=>{const date=new Date(dateInput+'T12:00:00');if(/^\d{4}-\d{2}-\d{2}$/.test(dateInput)&&Number.isFinite(date.getTime())&&dateKey(date)===dateInput){setDay(dateInput);setMonth(new Date(date.getFullYear(),date.getMonth(),1,12));setMessage('');}else setMessage('Enter a valid date in YYYY-MM-DD format.');}}>Open date</Button>
-        <View style={styles.row}><Button secondary onPress={()=>shift(-1)} testID="journal-previous">Previous day</Button><Button secondary onPress={()=>selectDay(dateKey(new Date()))}>Today</Button><Button secondary onPress={()=>shift(1)} testID="journal-next">Next day</Button></View>
+        <View style={styles.row}><Button secondary onPress={()=>shift(-1)} testID="journal-previous">Previous day</Button><Button secondary onPress={()=>setDay(dateKey(new Date()))}>Today</Button><Button secondary onPress={()=>shift(1)} testID="journal-next">Next day</Button></View>
         <Copy>{meals.length} meals · {sets.length} sets · {fit.water[day]??0} ml water · {steps===null||steps===undefined?'Steps not available':`${steps} recorded steps`}</Copy>
         {fit.weights.filter(w=>w.date===day).map(w=><Copy key={w.date}>Weight: {w.weight} kg</Copy>)}
         {meals.map(m=><Copy key={m.id}>{m.time} · {m.name} · {m.calories} kcal · P {m.protein} g · C {m.carbs} g · F {m.fat} g</Copy>)}
@@ -53,7 +48,7 @@ export default function PremiumCenter({visible,onClose,movementSummary}:{visible
         {!meals.length&&!sets.length&&!fit.water[day]&&<Copy>No journal entries recorded for this date. That does not mean no activity occurred.</Copy>}
       </Box>
       <Box title="Recorded days">
-        {[...new Set([...fit.meals.map(x=>x.date),...fit.sets.map(x=>x.date),...Object.keys(fit.water),...fit.weights.map(x=>x.date)])].sort().reverse().slice(0,60).map(d=><Button secondary key={d} onPress={()=>selectDay(d)}>{d}</Button>)}
+        {[...new Set([...fit.meals.map(x=>x.date),...fit.sets.map(x=>x.date),...Object.keys(fit.water),...fit.weights.map(x=>x.date)])].sort().reverse().slice(0,60).map(d=><Button secondary key={d} onPress={()=>setDay(d)}>{d}</Button>)}
       </Box>
     </>}
     {section==='Appearance'&&<>

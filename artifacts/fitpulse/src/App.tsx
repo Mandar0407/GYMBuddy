@@ -76,11 +76,11 @@ const STORAGE = {
 };
 
 const defaultProfile: Profile = {
-  name: 'Maya Chen',
+  name: 'Mandar Owalekar',
   goal: 'Build strength',
-  weight: 68,
-  height: 170,
-  calorieTarget: 2200,
+  weight: 75,
+  height: 182,
+  calorieTarget: 2500,
   proteinTarget: 110,
   carbsTarget: 250,
   fatTarget: 70,
@@ -108,8 +108,9 @@ function dateKey(date: Date) {
 }
 
 function isDefaultProfile(value: Profile): boolean {
-  return (Object.keys(defaultProfile) as Array<keyof Profile>)
-    .every((key) => value[key] === defaultProfile[key]);
+  const legacySample={...defaultProfile,name:'Maya Chen',weight:68,height:170,calorieTarget:2200};
+  return (Object.keys(legacySample) as Array<keyof Profile>)
+    .every((key) => value[key] === legacySample[key]);
 }
 
 function todayKey() {
@@ -134,7 +135,13 @@ function readStorage<T>(key: string, fallback: T): T {
 function readProfile(): Profile {
   const saved = readStorage<unknown>(STORAGE.profile, {});
   if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return defaultProfile;
-  const value = saved as Record<string, unknown>;
+  const value = {...saved} as Record<string, unknown>;
+  if(value.name==='Maya Chen'){
+    value.name=defaultProfile.name;
+    for(const [key,previous]of Object.entries({weight:68,height:170,calorieTarget:2200})){
+      if(value[key]===previous)value[key]=defaultProfile[key as keyof Profile];
+    }
+  }
   const getNumber = (key: keyof Profile, min: number, max: number, integer = false) =>
     boundedNumber(value[key], min, max, integer) ? value[key] as number : defaultProfile[key] as number;
   return {
@@ -553,7 +560,7 @@ function App() {
     { entity: 'nutritionGoals' as const, id: 'nutrition-goals', data: {
       calorieTarget: profile.calorieTarget, proteinTarget: profile.proteinTarget,
       carbsTarget: profile.carbsTarget, fatTarget: profile.fatTarget,
-    }, pristineDefault: profile.calorieTarget === defaultProfile.calorieTarget &&
+    }, pristineDefault: profile.calorieTarget === 2200 &&
       profile.proteinTarget === defaultProfile.proteinTarget && profile.carbsTarget === defaultProfile.carbsTarget &&
       profile.fatTarget === defaultProfile.fatTarget },
     { entity: 'profile' as const, id: 'profile', data: { ...profile }, pristineDefault: isDefaultProfile(profile) },
@@ -1296,8 +1303,8 @@ function PlanPage({ profile, onApplyPlan }: { profile: Profile; onApplyPlan: (pl
   const [form, setForm] = useState({
     weight: String(profile.weight),
     height: String(profile.height || 170),
-    age: '28',
-    sex: 'female' as Sex,
+    age: '26',
+    sex: 'male' as Sex,
     activity: 'moderate' as ActivityLevel,
     goal: 'maintain' as PlanGoal,
   });
@@ -1307,7 +1314,7 @@ function PlanPage({ profile, onApplyPlan }: { profile: Profile; onApplyPlan: (pl
 
   const weight = Math.max(1, numberValue(form.weight));
   const height = Math.max(100, numberValue(form.height) || 170);
-  const age = Math.min(90, Math.max(14, numberValue(form.age) || 28));
+  const age = Math.min(90, Math.max(14, numberValue(form.age) || 26));
   const validInputs = Number(form.weight) >= 20 && Number(form.weight) <= 500 &&
     Number(form.height) >= 100 && Number(form.height) <= 230 &&
     Number.isSafeInteger(Number(form.age)) && Number(form.age) >= 14 && Number(form.age) <= 90;
@@ -1345,7 +1352,7 @@ function PlanPage({ profile, onApplyPlan }: { profile: Profile; onApplyPlan: (pl
           <div className="form-grid">
             <Field id="plan-weight" label="Body weight" suffix="kg" value={form.weight} onChange={(value) => setForm({ ...form, weight: value })} placeholder="68" />
             <Field id="plan-height" label="Height" suffix="cm" value={form.height} onChange={(value) => setForm({ ...form, height: value })} placeholder="170" />
-            <Field id="plan-age" label="Age" suffix="years" value={form.age} onChange={(value) => setForm({ ...form, age: value })} placeholder="28" />
+            <Field id="plan-age" label="Age" suffix="years" value={form.age} onChange={(value) => setForm({ ...form, age: value })} placeholder="26" />
             <div className="field">
               <label htmlFor="plan-sex">Calculation profile</label>
               <select id="plan-sex" value={form.sex} onChange={(event) => setForm({ ...form, sex: event.target.value as Sex })} data-testid="select-plan-sex">

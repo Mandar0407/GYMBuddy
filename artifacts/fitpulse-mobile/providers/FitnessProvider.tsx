@@ -20,6 +20,7 @@ import {
 import { updateGymBuddyWidget } from '@/widgets/updateGymBuddyWidget';
 import { mergeJournalBackup,remapDeletedBackupIds } from '@/lib/premiumLogic';
 import { useWidgetTargets } from '@/providers/PremiumProvider';
+import {DEFAULT_FITNESS_PROFILE,upgradeSampleProfile}from'@/lib/defaultFitnessProfile';
 
 export type FitnessProfile = {
   name: string;
@@ -124,21 +125,7 @@ const SET_TYPES = ['warmup', 'working', 'drop', 'failure'] as const;
 const SEXES = ['female', 'male'] as const;
 const ACTIVITIES = ['sedentary', 'light', 'moderate', 'high'] as const;
 
-const DEFAULT_PROFILE: FitnessProfile = {
-  name: 'Maya Chen',
-  goal: 'Build strength',
-  weight: 68,
-  height: 170,
-  calorieTarget: 2200,
-  proteinTarget: 110,
-  carbsTarget: 250,
-  fatTarget: 70,
-  waterGoalMl: 2000,
-  stepTarget: 10000,
-  age: 28,
-  sex: 'female',
-  activity: 'moderate',
-};
+const DEFAULT_PROFILE: FitnessProfile = DEFAULT_FITNESS_PROFILE;
 
 const EMPTY_STATE: FitnessState = {
   profile: DEFAULT_PROFILE,
@@ -459,7 +446,8 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
       if (stored) {
         try {
-          const parsed: unknown = JSON.parse(stored);
+          const raw:unknown=JSON.parse(stored);
+          const parsed:unknown=isRecord(raw)?{...raw,profile:upgradeSampleProfile(raw.profile)}:raw;
           const result = validateState(parsed);
           stateRef.current = result.state;
           setState(result.state);
