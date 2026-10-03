@@ -16,14 +16,16 @@ function Lockup({ size, small, dark }: { size: number; small?: boolean; dark?: b
   return (
     <div className={`gbr-lock${small ? " sm" : ""}${dark ? " dark" : ""}`}>
       <Mark size={size} />
-      <span><span className="gbr-gym">GYM</span> <span className="gbr-buddy">Buddy</span></span>
+      <span className="gbr-wordmark"><span className="gbr-gym">GYM</span> <span className="gbr-buddy">Buddy</span></span>
     </div>
   );
 }
 
 export function Refined() {
   return (
-    <div className="gbr">
+    <>
+      <style>{`@font-face{font-family:'GYMBuddyDisplay';src:url('${import.meta.env.BASE_URL.replace(/\/?$/, '/')}fonts/gym-buddy-display.ttf') format('truetype');font-style:italic;font-weight:800;font-display:swap;}`}</style>
+      <div className="gbr">
       <section className="gbr-hero">
         <span className="gbr-lab" style={{ color: "#a49b90" }}>PRIMARY LOCKUP</span>
         <Mark size={120} />
@@ -47,6 +49,7 @@ export function Refined() {
           </svg>
         </div>
       </section>
-    </div>
+      </div>
+    </>
   );
 }

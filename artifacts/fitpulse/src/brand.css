@@ -1,0 +1,31 @@
+@font-face {
+  font-family: 'GYMBuddyDisplay';
+  src: url('/brand/fonts/gym-buddy-display.ttf') format('truetype');
+  font-style: italic;
+  font-weight: 800;
+  font-display: swap;
+}
+
+.fp-wordmark,
+.sit-wordmark {
+  display: inline-block;
+  font-family: 'GYMBuddyDisplay', sans-serif;
+  font-size: 27px;
+  font-style: italic;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.fp-brand .fp-wordmark { font-size: 28px; }
+.fp-brand-compact .fp-wordmark { font-size: 26px; }
+.fp-footer .fp-wordmark { font-size: 24px; }
+.sit-overlay-brand .sit-wordmark { font-size: 20px; }
+
+.fp-wordmark .fp-wm-gym,
+.fp-wordmark .fp-wm-buddy {
+  font: inherit;
+  letter-spacing: inherit;
+  margin: 0;
+}

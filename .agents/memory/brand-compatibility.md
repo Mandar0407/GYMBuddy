@@ -20,3 +20,9 @@ The approved logo is a muscular athlete with defined abs holding a loaded barbel
 **Why:** The user supplied an athlete-and-barbell shield illustration, then explicitly approved the resulting logo: “this one looks good.”
 
 **How to apply:** Use the supplied mascot direction when revising the shared app and website identity, while keeping the name lettering readable at small sizes and preserving the established palette.
+
+Keep the GYM Buddy lettering compact; avoid large gaps between its letters and words.
+
+**Why:** The user said the name looked weird with too much spacing and asked for a premium wordmark using wordart or a different font.
+
+**How to apply:** Scope typography improvements to the brand name, with consistent lettering across the website and mobile app.

@@ -1,4 +1,5 @@
 import { BrandMark } from './BrandMark';
+import { BrandWordmark } from './BrandWordmark';
 import React, { useEffect,useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, Keyboard, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -533,7 +534,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
   </View>:null;
   return <View style={[s.root, { backgroundColor: colors.background }]}>
     <View style={[s.header, { paddingTop: Platform.OS === 'web' ? 67 : insets.top + 10, backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-      <View style={s.brand}><BrandMark size={40} tile={colors.accent} glyph={colors.foreground} /><Text accessibilityLabel="GYM Buddy" style={[s.brandText, { color: colors.foreground }]}><Text style={{ fontFamily: 'DMSans_700Bold', letterSpacing: 1.8 }}>GYM</Text> <Text style={{ color: colors.secondaryForeground, letterSpacing: -1 }}>Buddy</Text></Text></View>
+      <View style={s.brand}><BrandMark size={40} tile={colors.accent} glyph={colors.foreground} /><BrandWordmark size={25} color={colors.foreground} accentColor={colors.secondaryForeground} /></View>
       <Pressable testID="open-menu" accessibilityRole="button" accessibilityLabel="Open menu" onPress={() => { tap(); setMenu(v => !v); }} style={[s.menuButton, { borderColor: colors.border, backgroundColor: colors.card }]}><Feather name={menu ? 'x' : 'user'} size={19} color={colors.foreground} /></Pressable>
     </View>
     {menu && <View style={[s.menu, { top: (Platform.OS === 'web' ? 67 : insets.top + 10) + 48, backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -609,8 +610,6 @@ const s = StyleSheet.create({
   undoBar: { paddingHorizontal:20,paddingVertical:12,minHeight:44 },
   header: { paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1 },
   brand: { flexDirection: 'row', gap: 9, alignItems: 'center' },
-  brandMark: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  brandText: { fontFamily: 'DMSans_700Bold', fontSize: 20, letterSpacing: 0 },
   menuButton: { borderWidth: 1, width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   menu: { position: 'absolute', top: Platform.OS === 'web' ? 119 : 93, right: 16, zIndex: 10, borderWidth: 1, borderRadius: 12, padding: 8, width: 170, elevation: 5 },
   menuItem: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },

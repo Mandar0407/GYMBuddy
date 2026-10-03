@@ -36,6 +36,7 @@ export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     DMSans_400Regular,
     DMSans_700Bold,
+    GYMBuddyDisplay: require('../assets/fonts/gym-buddy-display.ttf'),
   });
 
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { BrandMark } from '@/components/BrandMark';
+import { BrandWordmark } from '@/components/BrandWordmark';
 import React, { useEffect, useRef, useState } from 'react';
 import {usePageVisible}from'@/components/PersistentPage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -452,7 +453,7 @@ export default function IntervalTimer() {
             <View style={styles.modalHeader}>
               <View style={styles.modalBrand}>
                 <BrandMark size={24} tile={colors.primary} glyph={colors.primaryForeground} />
-                <Text accessibilityLabel="GYM Buddy" style={[styles.brandText, { color: colors.foreground }]}><Text style={{ letterSpacing: 1.2 }}>GYM</Text> <Text style={{ letterSpacing: -0.6 }}>Buddy</Text></Text>
+                <BrandWordmark size={20} color={colors.foreground} />
                 <Text style={[styles.brandDivider, { color: colors.mutedForeground }]}>/ Strength</Text>
               </View>
               <Pressable accessibilityRole="button" accessibilityLabel="End session" testID="end-interval" onPress={endSession} hitSlop={10} style={styles.endButton}>
@@ -581,7 +582,6 @@ const styles = StyleSheet.create({
   modalScreen: { flex: 1, paddingHorizontal: 18, justifyContent: 'space-between' },
   modalHeader: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   modalBrand: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  brandText: { fontFamily: 'DMSans_700Bold', fontSize: 16, letterSpacing: -0.5 },
   brandDivider: { fontFamily: 'DMSans_400Regular', fontSize: 11 },
   endButton: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 6 },
   endText: { fontFamily: 'DMSans_700Bold', fontSize: 11 },

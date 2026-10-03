@@ -49,3 +49,18 @@ test('installable icons have the advertised dimensions and artifact-relative URL
   const native=fs.readFileSync(path.resolve(__dirname,'../assets/images/gym-buddy-icon.png'));
   assert.equal(native.readUInt32BE(16),1024);assert.equal(native.readUInt32BE(20),1024);
 });
+test('the same display font is bundled on web, native and the brand preview',()=>{
+  const hash=buffer=>require('node:crypto').createHash('sha256').update(buffer).digest('hex');
+  const font=fs.readFileSync(path.join(web,'public/brand/fonts/gym-buddy-display.ttf'));
+  assert.equal(font.readUInt32BE(0),0x00010000);
+  for(const file of [
+    path.resolve(__dirname,'../assets/fonts/gym-buddy-display.ttf'),
+    path.resolve(__dirname,'../../mockup-sandbox/public/fonts/gym-buddy-display.ttf'),
+  ])assert.equal(hash(fs.readFileSync(file)),hash(font));
+  const svg=fs.readFileSync(path.join(web,'public/brand/gym-buddy-logo.svg'),'utf8');
+  const embedded=svg.match(/data:font\/ttf;base64,([A-Za-z0-9+/=]+)/);
+  assert.ok(embedded,'The downloadable wordmark must include its display font');
+  assert.equal(hash(Buffer.from(embedded[1],'base64')),hash(font));
+  const layout=fs.readFileSync(path.resolve(__dirname,'../app/_layout.tsx'),'utf8');
+  assert.match(layout,/GYMBuddyDisplay\s*:\s*require\(['"]\.\.\/assets\/fonts\/gym-buddy-display\.ttf['"]\)/);
+});

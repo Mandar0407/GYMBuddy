@@ -1,4 +1,5 @@
 import { BrandMark } from './components/BrandMark';
+import './brand.css';
 import { type CSSProperties, type FormEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from 'react';
 import {
   Activity,
