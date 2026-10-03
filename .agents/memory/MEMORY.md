@@ -16,3 +16,4 @@
 - [Expo native preview verification](expo-native-preview-verification.md) — fetch the manifest's launch URL; a guessed root bundle path can give misleading monorepo errors.
 - [Native tab visibility](native-tab-visibility.md) — hide the outer page, not the keyboard-aware scroll view; hidden native wrappers can clip active content.
 - [Mobile feature preservation](mobile-feature-preservation.md) — premium visual polish must retain every existing mobile feature.
+- [Backup reconciliation](backup-reconciliation.md) — paired restores must respect deletion markers and remain idempotent; photos are opt-in portable data.

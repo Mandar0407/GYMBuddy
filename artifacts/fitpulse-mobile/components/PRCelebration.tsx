@@ -3,6 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 export default function PRCelebration({
   visible, exercise, kind, value, onClose,
@@ -14,6 +15,7 @@ export default function PRCelebration({
   onClose: () => void;
 }) {
   const colors = useColors();
+  const reduced=useReducedMotion();
   const insets = useSafeAreaInsets();
   const normalizedKind = kind.trim().toLowerCase().replace(/[\s_-]+/g, '');
   const isOneRm = normalizedKind.includes('1rm') || normalizedKind.includes('onerm') || normalizedKind.includes('onerepmax');
@@ -28,7 +30,7 @@ export default function PRCelebration({
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType={reduced?'none':'fade'}
       statusBarTranslucent
       onRequestClose={onClose}
     >

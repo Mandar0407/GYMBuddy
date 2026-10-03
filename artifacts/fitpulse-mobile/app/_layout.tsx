@@ -12,6 +12,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { setBaseUrl, setAuthTokenGetter } from '@workspace/api-client-react';
 import { FitnessProvider } from '@/providers/FitnessProvider';
+import { PremiumProvider } from '@/providers/PremiumProvider';
+import AppearanceBridge from '@/components/premium/AppearanceBridge';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -48,11 +50,14 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <GestureHandlerRootView>
+          <GestureHandlerRootView style={{flex:1}}>
             <KeyboardProvider>
+              <PremiumProvider>
+              <AppearanceBridge/>
               <FitnessProvider>
                 <RootLayoutNav />
               </FitnessProvider>
+              </PremiumProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>

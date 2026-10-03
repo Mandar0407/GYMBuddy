@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './getFoodBarcode200';
 export * from './healthStatus';
 export * from './journalChange';
 export * from './journalChangeConflict';

@@ -454,6 +454,14 @@ function metadataValue(value: unknown, pairFingerprint: string): SyncMetadata {
   }
   return { pairFingerprint, baseline: {}, tombstones: [], heldLocalKeys: {} };
 }
+export async function deletedFitnessJournalKeys(pairKey:string):Promise<Set<string>>{
+  const pairFingerprint=metadataId(pairKey);
+  const metadata=metadataValue(JSON.parse((await AsyncStorage.getItem(`${META_PREFIX}${pairFingerprint}`))??'null'),pairFingerprint);
+  return new Set([
+    ...metadata.tombstones.map(item=>keyOf(item.entity,item.id)),
+    ...Object.entries(metadata.baseline).filter(([,value])=>value.deleted).map(([key])=>key),
+  ]);
+}
 
 export async function persistFitnessJournalTombstones(
   pairKey: string,

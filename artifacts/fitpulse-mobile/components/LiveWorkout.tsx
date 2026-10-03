@@ -5,6 +5,8 @@ import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { usePremium } from '@/providers/PremiumProvider';
 import { useFitness } from '@/providers/FitnessProvider';
 import { withJournalStorageLock } from '@/providers/journalStorageLock';
 
@@ -153,6 +155,8 @@ export default function LiveWorkout({ steps, stepDate: providedStepDate, onCompl
 }) {
   const stepDate = providedStepDate ?? localDateKey();
   const colors = useColors();
+  const reduced=useReducedMotion();
+  const premium=usePremium();
   const fit = useFitness();
   const insets = useSafeAreaInsets();
   const [exercise, setExercise] = useState('');
@@ -270,7 +274,7 @@ export default function LiveWorkout({ steps, stepDate: providedStepDate, onCompl
     setSetFeedback(personalBest ? 'New personal best. Set saved.' : 'Set saved to this workout.');
     setReps('');
     if (setType === 'working') setRestUntil(Date.now() + 90_000);
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (premium.settings.haptics && Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(()=>{});
   };
 
   useEffect(() => {
@@ -519,7 +523,7 @@ export default function LiveWorkout({ steps, stepDate: providedStepDate, onCompl
 
       {error ? <Text accessibilityRole="alert" style={[styles.error, { color: colors.destructive }]} testID="status-workout-storage-error">{error}</Text> : null}
 
-      <Modal visible={!!countdown || !!active} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => {
+      <Modal visible={!!countdown || !!active} animationType={reduced?'none':'slide'} presentationStyle="fullScreen" onRequestClose={() => {
         if (countdown) setCountdown(null);
         else if (!confirmEnd) setConfirmEnd(true);
       }}>

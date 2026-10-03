@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  GetFoodBarcode200,
   HealthStatus,
   JournalChanges,
   JournalChangesResult,
@@ -57,6 +58,77 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetFoodBarcodeUrl = (barcode: string,) => {
+
+
+
+
+  return `/api/food/${barcode}`
+}
+
+export const getFoodBarcode = async (barcode: string, options?: Parameters<typeof customFetch>[1]): Promise<GetFoodBarcode200> => {
+
+  return customFetch<GetFoodBarcode200>(getGetFoodBarcodeUrl(barcode),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFoodBarcodeQueryKey = (barcode: string,) => {
+    return [
+    `/api/food/${barcode}`
+    ] as const;
+    }
+
+
+export const getGetFoodBarcodeQueryOptions = <TData = Awaited<ReturnType<typeof getFoodBarcode>>, TError = ErrorType<void>>(barcode: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFoodBarcode>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFoodBarcodeQueryKey(barcode);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFoodBarcode>>> = ({ signal }) => getFoodBarcode(barcode, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: barcode !== null && barcode !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFoodBarcode>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFoodBarcodeQueryResult = NonNullable<Awaited<ReturnType<typeof getFoodBarcode>>>
+export type GetFoodBarcodeQueryError = ErrorType<void>
+
+
+
+export function useGetFoodBarcode<TData = Awaited<ReturnType<typeof getFoodBarcode>>, TError = ErrorType<void>>(
+ barcode: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFoodBarcode>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFoodBarcodeQueryOptions(barcode,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getCreateMovementAccountUrl = () => {
 

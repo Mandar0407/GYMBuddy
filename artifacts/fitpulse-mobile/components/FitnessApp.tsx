@@ -1,7 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { AppState, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState, Keyboard, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { usePremium } from '@/providers/PremiumProvider';
+import TrainingHub from '@/components/premium/TrainingHub';
+import NutritionHub from '@/components/premium/NutritionHub';
+import PremiumCenter from '@/components/premium/PremiumCenter';
+import DashboardExtras from '@/components/premium/DashboardExtras';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
+import {registerDraftSaver} from '@/lib/draftFlush';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useFitness, dateKey, type MovementSummary } from '@/providers/FitnessProvider';
@@ -24,8 +32,6 @@ const tabs: MainTab[] = ['Today', 'Log', 'Movement', 'Insights', 'Plan'];
 const icons: Record<MainTab, keyof typeof Feather.glyphMap> = {
   Today: 'home', Log: 'plus-square', Movement: 'navigation', Insights: 'bar-chart-2', Plan: 'clipboard',
 };
-const tap = () => { if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {}); };
-const success = () => { if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}); };
 const number = (n: number) => Number(n.toFixed(1)).toLocaleString('en-US', { maximumFractionDigits: 1 });
 const integer = (s: string, low: number, high: number) => /^\d+$/.test(s.trim()) && Number(s) >= low && Number(s) <= high;
 const decimal = (s: string, low: number, high: number) => s.trim() !== '' && Number.isFinite(Number(s)) && Number(s) >= low && Number(s) <= high;
@@ -49,9 +55,11 @@ function Panel({ children, colors, style }: { children: React.ReactNode; colors:
 function Action({ children, onPress, colors, secondary = false, disabled = false, testID }: {
   children: React.ReactNode; onPress: () => void; colors: Palette; secondary?: boolean; disabled?: boolean; testID?: string;
 }) {
+  const premium=usePremium();
+  const tap=()=>{if(premium.settings.haptics&&Platform.OS!=='web')void Haptics.selectionAsync().catch(()=>{});};
   return <Pressable accessibilityRole="button" testID={testID} disabled={disabled} onPress={() => { tap(); onPress(); }} style={({ pressed }) => [s.action,
-    { backgroundColor: secondary ? colors.secondary : colors.primary, opacity: pressed || disabled ? .5 : 1 }]}>
-    <Text style={[s.actionText, { color: secondary ? colors.secondaryForeground : colors.primaryForeground }]}>{children}</Text>
+    { backgroundColor: secondary ? colors.secondary : colors.accent, opacity: pressed || disabled ? .5 : 1 }]}>
+    <Text style={[s.actionText, { color: secondary ? colors.secondaryForeground : colors.accentForeground }]}>{children}</Text>
   </Pressable>;
 }
 function Field({ label, value, onChange, colors, placeholder, numeric = false, testID }: {
@@ -66,9 +74,11 @@ function Field({ label, value, onChange, colors, placeholder, numeric = false, t
 function Select<T extends string>({ values, value, onChange, colors }: {
   values: readonly T[]; value: T; onChange: (v: T) => void; colors: Palette;
 }) {
+  const premium=usePremium();
+  const tap=()=>{if(premium.settings.haptics&&Platform.OS!=='web')void Haptics.selectionAsync().catch(()=>{});};
   return <View style={s.pills}>{values.map(v => <Pressable accessibilityRole="button" accessibilityState={{ selected: v === value }} key={v} onPress={() => { tap(); onChange(v); }}
     style={[s.pill, { backgroundColor: v === value ? colors.accent : colors.background, borderColor: v === value ? colors.accent : colors.border }]}>
-    <Text style={[s.pillText, { color: colors.foreground }]}>{v === 'warmup' ? 'Warm-up' : v === 'working' ? 'Working' : v === 'drop' ? 'Drop' : v === 'failure' ? 'Failure' : v[0].toUpperCase() + v.slice(1)}</Text>
+    <Text style={[s.pillText, { color: v===value ? colors.accentForeground : colors.foreground }]}>{v === 'warmup' ? 'Warm-up' : v === 'working' ? 'Working' : v === 'drop' ? 'Drop' : v === 'failure' ? 'Failure' : v[0].toUpperCase() + v.slice(1)}</Text>
   </Pressable>)}</View>;
 }
 function Meter({ value, target, color, colors }: { value: number; target: number; color: string; colors: Palette }) {
@@ -88,6 +98,16 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const fit = useFitness();
+  const advanced = usePremium();
+  const reduced=useReducedMotion();
+  const tap=()=>{if(advanced.settings.haptics&&Platform.OS!=='web')void Haptics.selectionAsync().catch(()=>{});};
+  const success=()=>{if(advanced.settings.haptics&&Platform.OS!=='web')void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(()=>{});};
+  const dark=colors.background==='#181c19';
+  const heroBg=dark?colors.card:colors.foreground;
+  const heroFg=dark?colors.foreground:colors.card;
+  const heroMuted=dark?colors.mutedForeground:colors.muted;
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [editingMealId, setEditingMealId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('Today');
   const [mealSaved, setMealSaved] = useState('');
   const [setSaved, setSetSaved] = useState('');
@@ -115,6 +135,43 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
   const [restStartKey, setRestStartKey] = useState(0);
   const [record, setRecord] = useState<{ exercise: string; kind: string; value: number } | null>(null);
   const [dateNow, setDateNow] = useState(() => new Date());
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  const [draftMessage, setDraftMessage] = useState('');
+  const draftRef = useRef('');
+  useEffect(() => {
+    let alive = true;
+    void AsyncStorage.getItem('@fitpulse/mobile/form-drafts/v1').then(raw => {
+      if (!alive || !raw) return;
+      const d = JSON.parse(raw);
+      if (!d || d.version !== 1 || !['mealName','exercise','load','reps'].every(k => typeof d[k] === 'string' && d[k].length <= 120) ||
+        !['Breakfast','Lunch','Dinner','Snack'].includes(d.mealType) || !['warmup','working','drop','failure'].includes(d.setType) ||
+        !d.mealValues || !['calories','protein','carbs','fat'].every(k => typeof d.mealValues[k] === 'string' && d.mealValues[k].length <= 30)) {
+        throw new Error('Stored form draft is invalid.');
+      }
+      setMealName(d.mealName);setExercise(d.exercise);setLoad(d.load);setReps(d.reps);setMealType(d.mealType);setSetType(d.setType);setMealValues(d.mealValues);
+      if (typeof d.editingMealId === 'string') setEditingMealId(d.editingMealId);
+      if(d.plan&&['weight','height','age','sex','activity','goal'].every(k=>typeof d.plan[k]==='string'&&d.plan[k].length<=120))setPlan(d.plan);
+      if(d.targets&&['calories','protein','carbs','fat'].every(k=>typeof d.targets[k]==='string'&&d.targets[k].length<=30))setTargets(d.targets);
+      if(typeof d.weightInput==='string'&&d.weightInput.length<=120)setWeightInput(d.weightInput);
+      if (d.mealName || d.exercise) setDraftMessage('Your unfinished meal or set draft was restored.');
+    }).catch(() => { if (alive) setDraftMessage('Your form draft could not load. Saved journal records are unaffected.'); })
+      .finally(() => { if (alive) setDraftLoaded(true); });
+    return () => {alive=false;};
+  }, []);
+  useEffect(() => {
+    if (!draftLoaded) return;
+    draftRef.current = JSON.stringify({version:1,mealName,mealType,mealValues,exercise,load,reps,setType,editingMealId,plan,targets,weightInput});
+    const timer=setTimeout(()=>{void AsyncStorage.setItem('@fitpulse/mobile/form-drafts/v1',draftRef.current).catch(()=>setDraftMessage('Form draft could not save. Keep the app open until you save your entry.'));},350);
+    return ()=>clearTimeout(timer);
+  }, [draftLoaded,mealName,mealType,mealValues,exercise,load,reps,setType,editingMealId,plan,targets,weightInput]);
+  useEffect(()=>{
+    if(!draftLoaded)return;
+    return registerDraftSaver('main-forms',async()=>{if(draftRef.current)await AsyncStorage.setItem('@fitpulse/mobile/form-drafts/v1',draftRef.current);});
+  },[draftLoaded]);
+  useEffect(() => {
+    const sub=AppState.addEventListener('change',state=>{if(state!=='active'&&draftRef.current)void AsyncStorage.setItem('@fitpulse/mobile/form-drafts/v1',draftRef.current).catch(()=>{});});
+    return ()=>sub.remove();
+  },[]);
   useEffect(() => {
     let active = true;
     const open = (url: string | null) => {
@@ -134,7 +191,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
     return () => { clearInterval(timer); foreground.remove(); };
   }, []);
   const today = dateKey(dateNow);
-  const profile = fit.profile;
+  const profile = { ...fit.profile, ...(advanced.dayMode === 'standard' ? {} : advanced.dayTargets[advanced.dayMode]) };
   const meals = fit.meals.filter(m => m.date === today);
   const sets = fit.sets.filter(x => x.date === today);
   const finishedIds = new Set(fit.completedWorkouts.filter(x => x.date === today).flatMap(x => x.setIds));
@@ -143,7 +200,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
   const calories = sum('calories'), protein = sum('protein'), carbs = sum('carbs'), fat = sum('fat');
   const steps = movementSummary.steps;
   const goalSteps = movementSummary.goal || profile.stepTarget;
-  const changeTab = (next: Tab) => { tap(); setTab(next); setMenu(false); };
+  const changeTab = (next: Tab) => { Keyboard.dismiss(); tap(); setTab(next); setMenu(false); };
   const openMeal = () => { setMealError(''); setMealOpen(true); };
   const saveMeal = async () => {
     const name = mealName.replace(/\s+/g, ' ').trim();
@@ -151,11 +208,12 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
     if (!decimal(mealValues.calories, .01, 10000)) { setMealError('Calories must be between 0.01 and 10,000.'); return; }
     if (!(['protein', 'carbs', 'fat'] as const).every(k => decimal(mealValues[k], 0, 1000))) { setMealError('Protein, carbs, and fat must each be between 0 and 1,000 g.'); return; }
     setSaving(true);
-    const ok = await fit.addMeal({ meal: mealType, name, calories: Number(mealValues.calories), protein: Number(mealValues.protein), carbs: Number(mealValues.carbs), fat: Number(mealValues.fat) });
+    const input = { meal: mealType, name, calories: Number(mealValues.calories), protein: Number(mealValues.protein), carbs: Number(mealValues.carbs), fat: Number(mealValues.fat) };
+    const ok = editingMealId ? await fit.editMeal(editingMealId, input) : await fit.addMeal(input);
     setSaving(false);
     if (!ok) { setMealError('Meal could not be saved on this device. Your entries are still here; try again.'); return; }
     setMealValues({ calories: '', protein: '', carbs: '', fat: '' }); setMealName(''); setMealError(''); setMealOpen(false);
-    setMealSaved('Meal saved to today.'); success();
+    setMealSaved(editingMealId ? 'Meal updated; its original date was kept.' : 'Meal saved to today.'); setEditingMealId(null); success();
   };
   const saveSet = async () => {
     const name = exercise.replace(/\s+/g, ' ').trim();
@@ -175,7 +233,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
     if (setType === 'working') setRestStartKey(v => v + 1);
     if (weightRecord || oneRmRecord) setRecord({ exercise: name, kind: oneRmRecord ? 'Estimated 1RM' : 'Weight', value: oneRmRecord ? estimatedOneRm : weight });
   };
-  const targetForm = targets ?? { calories: String(profile.calorieTarget), protein: String(profile.proteinTarget), carbs: String(profile.carbsTarget), fat: String(profile.fatTarget) };
+  const targetForm = targets ?? { calories: String(fit.profile.calorieTarget), protein: String(fit.profile.proteinTarget), carbs: String(fit.profile.carbsTarget), fat: String(fit.profile.fatTarget) };
   const updateTarget = (key: keyof typeof targetForm, value: string) => { setTargets({ ...targetForm, [key]: value }); setTargetMessage(''); };
   const saveGoals = async () => {
     if (!integer(targetForm.calories, 1000, 10000) || !(['protein', 'carbs', 'fat'] as const).every(k => integer(targetForm[k], 1, 1000))) {
@@ -212,7 +270,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
     if (!ok) { setPlanMessage('Your plan could not be saved on this device. Please try again.'); return; }
     setTargets(null);
     setTargetMessage('');
-    setPlanMessage('Your plan is applied. Nutrition targets are up to date.');
+    setPlanMessage(advanced.dayMode==='standard'?'Your plan is applied. Nutrition targets are up to date.':`Base plan applied. Your ${advanced.dayMode}-day override remains active; switch to standard mode in Your workspace to use the new base goals.`);
     success();
   };
   const heading = (eyebrow: string, title: string, description: string) => <View style={s.pageHeading}>
@@ -223,7 +281,9 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
       <Pressable testID="open-meal" onPress={openMeal} style={[s.iconCircle, { backgroundColor: colors.background }]}><Feather name="plus" size={21} color={colors.primary} /></Pressable></View>
     {meals.length ? (limited ? meals.slice(0, 4) : meals).map(m => <View key={m.id} style={[s.listRow, { borderBottomColor: colors.border }]}>
       <View style={[s.mealIcon, { backgroundColor: colors.secondary }]}><Feather name="coffee" size={16} color={colors.secondaryForeground} /></View>
-      <View style={s.rowContent}><Text style={[s.smallStrong, { color: colors.foreground }]} numberOfLines={2}>{m.name}</Text><Muted colors={colors} style={s.micro}>{m.meal} · {m.time} · P {number(m.protein)}g · C {number(m.carbs)}g · F {number(m.fat)}g</Muted></View>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${m.name}`} testID={`edit-meal-${m.id}`} style={s.rowContent} onPress={() => {
+        setEditingMealId(m.id);setMealName(m.name);setMealType(m.meal);setMealValues({calories:String(m.calories),protein:String(m.protein),carbs:String(m.carbs),fat:String(m.fat)});openMeal();
+      }}><Text style={[s.smallStrong, { color: colors.foreground }]} numberOfLines={2}>{m.name}</Text><Muted colors={colors} style={s.micro}>{m.meal} · {m.time} · P {number(m.protein)}g · C {number(m.carbs)}g · F {number(m.fat)}g · Tap to edit</Muted></Pressable>
       <Text style={[s.smallStrong, { color: colors.foreground }]}>{number(m.calories)}</Text>
        {!limited && <Pressable testID={`delete-meal-${m.id}`} accessibilityLabel={`Delete ${m.name}`} onPress={() => void fit.removeMeal(m.id)} hitSlop={10}><Feather name="trash-2" size={17} color={colors.destructive} /></Pressable>}
     </View>) : <View style={s.empty}><Feather name="book-open" size={26} color={colors.primary} /><Text style={[s.smallStrong, { color: colors.foreground }]}>No meals logged yet</Text><Muted colors={colors}>Track your first bite and build a clearer picture of today.</Muted><Action colors={colors} onPress={openMeal}>Log a meal</Action></View>}
@@ -254,37 +314,42 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
       <Text style={[s.todayTitle, { color: colors.foreground }]}>Today<Text style={{ color: colors.secondaryForeground }}>.</Text></Text>
       <Muted colors={colors}>Your progress, at a glance.</Muted>
     </View>
-    <View style={[s.todaySummary, { backgroundColor: colors.foreground }]}>
+    <View style={[s.todaySummary, { backgroundColor: heroBg }]}>
       <View style={s.between}><Text style={[s.heroLabel, { color: colors.accent }]}>DAILY JOURNAL</Text><Feather name="activity" size={18} color={colors.accent} /></View>
-      <Text style={[s.todaySummaryNumber, { color: colors.card }]}>{number(calories)} <Text style={[s.todaySummaryUnit, { color: colors.muted }]}>/ {number(profile.calorieTarget)} kcal</Text></Text>
+      <Text style={[s.todaySummaryNumber, { color: heroFg }]}>{number(calories)} <Text style={[s.todaySummaryUnit, { color: heroMuted }]}>/ {number(profile.calorieTarget)} kcal</Text></Text>
       <Meter value={calories} target={profile.calorieTarget} color={colors.accent} colors={colors} />
-      <Text style={[s.heroBody, { color: colors.muted }]}>{meals.length} {meals.length === 1 ? 'meal' : 'meals'} logged today</Text>
+      <Text style={[s.heroBody, { color: heroMuted }]}>{meals.length} {meals.length === 1 ? 'meal' : 'meals'} logged today · {advanced.dayMode} targets</Text>
     </View>
-    <View style={[s.todayMetrics, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <View style={[s.todayMetrics, { backgroundColor: colors.card, borderColor: colors.border,flexWrap:'wrap' }]}>
       {([
         ['Protein', `${number(protein)}g`, `${number(profile.proteinTarget)}g goal`, 'Nutrition'],
         ['Steps', number(steps), `${number(goalSteps)} goal`, 'Movement'],
         ['Strength', String(sets.length), 'sets today', 'Strength'],
-      ] as const).map(([label, value, detail, destination], i) => <Pressable accessibilityRole="button" key={label} onPress={() => changeTab(destination)}
-        style={[s.todayMetric, i > 0 && { borderLeftColor: colors.border, borderLeftWidth: 1 }]}>
+        ['Water',`${number(fit.water[today]??0)} ml`,`${profile.waterGoalMl} ml goal`,'Nutrition'],
+        ['Calories',number(calories),`${profile.calorieTarget} kcal goal`,'Nutrition'],
+      ] as const).filter(([label])=>advanced.settings.metrics.includes(label.toLowerCase())).map(([label, value, detail, destination], i) => <Pressable accessibilityRole="button" key={label} onPress={() => changeTab(destination)}
+        style={[s.todayMetric, {flexBasis:advanced.settings.metrics.length>3?'42%':'0%'}, i > 0 && { borderLeftColor: colors.border, borderLeftWidth: 1 }]}>
         <Text style={[s.statLabel, { color: colors.mutedForeground }]}>{label.toUpperCase()}</Text>
         <Text style={[s.todayMetricValue, { color: colors.foreground }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
         <Muted colors={colors} style={s.micro}>{detail}</Muted>
       </Pressable>)}
     </View>
+    {!!draftMessage && <Muted colors={colors}>{draftMessage}</Muted>}
     <View>
       <Label colors={colors}>UP NEXT</Label>
       <Pressable accessibilityRole="button" testID="today-next-action" onPress={() => changeTab(nextAction.section)} style={({ pressed }) => [s.nextCard, { backgroundColor: colors.secondary, opacity: pressed ? .78 : 1 }]}>
-        <View style={[s.nextIcon, { backgroundColor: colors.accent }]}><Feather name={nextAction.icon} size={20} color={colors.foreground} /></View>
+        <View style={[s.nextIcon, { backgroundColor: colors.accent }]}><Feather name={nextAction.icon} size={20} color={colors.accentForeground} /></View>
         <View style={s.rowContent}><Text style={[s.nextTitle, { color: colors.foreground }]}>{nextAction.label}</Text><Muted colors={colors}>{nextAction.detail}</Muted></View>
         <Feather name="arrow-up-right" size={20} color={colors.secondaryForeground} />
       </Pressable>
     </View>
+    <DashboardExtras onNavigate={changeTab} />
   </View>;
   const nutritionScreen = <View style={s.stack}>
     {heading('NUTRITION · TODAY', 'Nutrition log', 'Meals, water, and daily targets.')}
+    <NutritionHub onMeal={m=>{setEditingMealId(null);setMealName(m.name);setMealType(m.meal);setMealValues({calories:String(m.calories),protein:String(m.protein),carbs:String(m.carbs),fat:String(m.fat)});openMeal();}} />
     {!!mealSaved && <Text accessibilityRole="alert" style={[s.feedback, { color: colors.secondaryForeground }]}>{mealSaved}</Text>}
-    <Panel colors={colors}><Label colors={colors}>YOUR DAILY TARGETS</Label><Text style={[s.sectionTitle, { color: colors.foreground }]}>Daily goals</Text><Muted colors={colors}>Current focus: {profile.goal}</Muted>
+    <Panel colors={colors}><Label colors={colors}>YOUR DAILY TARGETS</Label><Text style={[s.sectionTitle, { color: colors.foreground }]}>Base-plan goals</Text><Muted colors={colors}>Current focus: {profile.goal} · Active mode: {advanced.dayMode}. Editing below changes your base plan, not the optional day overrides.</Muted>
       <View style={s.twoColumns}>{(['calories', 'protein', 'carbs', 'fat'] as const).map(k => <View key={k} style={s.half}>
         <Field label={`${k[0].toUpperCase()+k.slice(1)} (${k === 'calories' ? 'kcal' : 'g'})`} numeric value={targetForm[k]} onChange={v => updateTarget(k, v)} colors={colors} testID={`target-${k}`} />
       </View>)}</View>
@@ -300,6 +365,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
   </View>;
   const strengthScreen = <View style={s.stack}>
     {heading('STRENGTH · TODAY', 'Strength log', 'Sessions and sets in one place.')}
+    <TrainingHub exercise={exercise} weight={load} onExercise={(name,w,r)=>{setExercise(name);if(w!==undefined)setLoad(w===null?'':String(w));if(r!==undefined)setReps(r===null?'':String(r));}} />
     {!!setSaved && <Text accessibilityRole="alert" style={[s.feedback, { color: colors.secondaryForeground }]}>{setSaved}</Text>}
      <LiveWorkout steps={steps} stepDate={today} onComplete={(kind, startedAt, sessionId) => {
        if (kind !== 'strength') return;
@@ -323,6 +389,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
     </Panel>
     <Panel colors={colors}><Label colors={colors}>LOG A SET</Label><Text style={[s.sectionTitle, { color: colors.foreground }]}>Show up for one rep.</Text>
       <Field label="Exercise" value={exercise} onChange={setExercise} placeholder="e.g. Back squat" colors={colors} testID="set-exercise" />
+      {fit.sets.find(x=>x.exercise.toLowerCase()===exercise.trim().toLowerCase()) && <Muted colors={colors}>Previous: {fit.sets.find(x=>x.exercise.toLowerCase()===exercise.trim().toLowerCase())!.weight} kg × {fit.sets.find(x=>x.exercise.toLowerCase()===exercise.trim().toLowerCase())!.reps}</Muted>}
       <View style={s.twoColumns}><View style={s.half}><Field label="Weight (kg)" numeric value={load} onChange={setLoad} placeholder="60" colors={colors} testID="set-weight" /></View>
         <View style={s.half}><Field label="Reps" numeric value={reps} onChange={setReps} placeholder="8" colors={colors} testID="set-reps" /></View></View>
       <Text style={[s.fieldLabel, { color: colors.foreground }]}>Set type</Text><Select values={['warmup', 'working', 'drop', 'failure'] as const} value={setType} onChange={setSetType} colors={colors} />
@@ -473,6 +540,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
       <Pressable testID="open-menu" accessibilityRole="button" accessibilityLabel="Open menu" onPress={() => { tap(); setMenu(v => !v); }} style={[s.menuButton, { borderColor: colors.border, backgroundColor: colors.card }]}><Feather name={menu ? 'x' : 'user'} size={19} color={colors.foreground} /></Pressable>
     </View>
     {menu && <View style={[s.menu, { top: (Platform.OS === 'web' ? 67 : insets.top + 10) + 48, backgroundColor: colors.card, borderColor: colors.border }]}>
+      <Pressable testID="open-workspace" accessibilityLabel="Open personal workspace" onPress={()=>{setMenu(false);setWorkspaceOpen(true);}} style={s.menuItem}><Feather name="grid" size={18} color={colors.primary}/><Text style={[s.smallStrong,{color:colors.foreground}]}>Your workspace</Text></Pressable>
       <Pressable testID="nav-my-plan" onPress={() => changeTab('My plan')} style={s.menuItem}><Feather name="clipboard" size={18} color={colors.primary} /><Text style={[s.smallStrong, { color: colors.foreground }]}>My plan</Text><Feather name="arrow-right" size={16} color={colors.primary} /></Pressable>
       <Pressable testID="open-profile" onPress={() => { setMenu(false); setProfileOpen(true); }} style={s.menuItem}><Feather name="user" size={18} color={colors.primary} /><Text style={[s.smallStrong, { color: colors.foreground }]}>Edit profile</Text><Feather name="arrow-right" size={16} color={colors.primary} /></Pressable>
     </View>}
@@ -496,7 +564,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
       // Native keyboard-aware scrolling adds its own flex container. Hide the
       // whole page, not just its inner scroll view, so inactive tabs take no space.
       <View key={section} style={{ flex: 1, display: tab === section ? 'flex' : 'none' }}>
-      <KeyboardAwareScrollViewCompat style={{ flex: 1 }} bottomOffset={60} contentContainerStyle={[s.content, { paddingBottom: Platform.OS === 'web' ? 34 + 30 : insets.bottom + 30 }]} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollViewCompat testID={`page-${section.toLowerCase().replace(/\s/g,'-')}`} style={{ flex: 1 }} bottomOffset={60} keyboardDismissMode="on-drag" contentContainerStyle={[s.content, { paddingBottom: Platform.OS === 'web' ? 34 + 30 : insets.bottom + 30 }]} keyboardShouldPersistTaps="handled">
        {!fit.ready ? <View style={s.stack}>{[1,2,3].map(n => <View key={n} style={[s.skeleton, { backgroundColor: colors.muted }]} />)}</View> : loadBlocked ? <Panel colors={colors}><Text style={[s.sectionTitle, { color: colors.destructive }]}>Your journal couldn’t load.</Text><Muted colors={colors}>{fit.error}</Muted><Muted colors={colors}>Please reopen the app to try again.</Muted></Panel> :
        <View style={s.stack}>
          {!!fit.error && <Text accessibilityRole="alert" style={[s.feedback, { color: colors.destructive }]}>{fit.error}</Text>}
@@ -514,7 +582,9 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
         </Pressable>;
       })}</View>
     </View>
-    <Modal visible={mealOpen} animationType="slide" transparent onRequestClose={() => { if (!saving) setMealOpen(false); }}>
+    {fit.undoAvailable && <Pressable accessibilityRole="button" testID="undo-latest-deletion" onPress={()=>void fit.undoLastDeletion()} style={[s.undoBar,{backgroundColor:colors.secondary}]}><Text style={[s.smallStrong,{color:colors.secondaryForeground}]}>Entry deleted · Undo</Text></Pressable>}
+    <PremiumCenter visible={workspaceOpen} onClose={()=>setWorkspaceOpen(false)} movementSummary={movementSummary}/>
+    <Modal visible={mealOpen} animationType={reduced?'none':'slide'} transparent onRequestClose={() => { if (!saving) setMealOpen(false); }}>
       <View style={[s.modalBackdrop, { backgroundColor: colors.foreground + '99' }]}>
          <KeyboardAwareScrollViewCompat bottomOffset={60} keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 18, paddingVertical: Platform.OS === 'web' ? 67 : insets.top + 15 }}>
           <View style={[s.modalCard, { backgroundColor: colors.card }]}>
@@ -529,7 +599,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
          </KeyboardAwareScrollViewCompat>
       </View>
     </Modal>
-    <ProfileModal profile={movementSummary.paired ? { ...profile, stepTarget: movementSummary.goal } : profile}
+    <ProfileModal profile={movementSummary.paired ? { ...fit.profile, stepTarget: movementSummary.goal } : fit.profile}
       stepTargetManagedInMovement={!!movementSummary.paired} visible={profileOpen} onClose={() => setProfileOpen(false)} onSave={async (update) => {
       const ok = await fit.applyPlan(update);
       if (ok) { setTargets(null); setPlan(null); }
@@ -541,7 +611,8 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, minHeight: 400 },
+  root: { flex: 1, minHeight: 0 },
+  undoBar: { paddingHorizontal:20,paddingVertical:12,minHeight:44 },
   header: { paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1 },
   brand: { flexDirection: 'row', gap: 9, alignItems: 'center' },
   brandMark: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
@@ -553,7 +624,7 @@ const s = StyleSheet.create({
   nav: { flexDirection: 'row', paddingHorizontal: 6, paddingTop: 7, paddingBottom: 3 },
   navItem: { flex: 1, minHeight: 53, alignItems: 'center', justifyContent: 'center', gap: 2 },
   navIcon: { width: 42, height: 30, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  navText: { fontFamily: 'DMSans_700Bold', fontSize: 10 },
+  navText: { fontFamily: 'DMSans_700Bold', fontSize: 11 },
   logSwitchWrap: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
   logSwitch: { flexDirection: 'row', borderRadius: 12, padding: 4 },
   logSwitchItem: { flex: 1, minHeight: 37, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
@@ -579,13 +650,13 @@ const s = StyleSheet.create({
   label: { fontFamily: 'DMSans_700Bold', fontSize: 9, letterSpacing: 1.5, lineHeight: 14 },
   title: { fontFamily: 'DMSans_700Bold', fontSize: 38, lineHeight: 42, letterSpacing: -2.2 },
   serif: { fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', fontStyle: 'italic', fontSize: 47, lineHeight: 51, letterSpacing: -2 },
-  muted: { fontFamily: 'DMSans_400Regular', fontSize: 12, lineHeight: 18 },
+  muted: { fontFamily: 'DMSans_400Regular', fontSize: 13, lineHeight: 20 },
   micro: { fontSize: 10, lineHeight: 15 },
   hero: { minHeight: 226, borderRadius: 17, padding: 20, paddingTop: 51, overflow: 'hidden', justifyContent: 'flex-end', gap: 9 },
   heroOrbit: { position: 'absolute', top: -23, right: -12, width: 125, height: 125, borderRadius: 80, borderWidth: 1, alignItems: 'center', justifyContent: 'center', opacity: .65 },
   heroLabel: { fontFamily: 'DMSans_700Bold', fontSize: 9, letterSpacing: 1.5 },
   heroTitle: { fontFamily: 'DMSans_700Bold', fontSize: 27, lineHeight: 30, letterSpacing: -1.4, maxWidth: 280 },
-  heroBody: { fontFamily: 'DMSans_400Regular', fontSize: 11, lineHeight: 17 },
+  heroBody: { fontFamily: 'DMSans_400Regular', fontSize: 13, lineHeight: 20 },
   heroLink: { fontFamily: 'DMSans_700Bold', fontSize: 11, marginTop: 4 },
   sectionTitle: { fontFamily: 'DMSans_700Bold', fontSize: 20, lineHeight: 25, letterSpacing: -.7, marginTop: 4 },
   panel: { borderWidth: 1, borderRadius: 15, padding: 17, gap: 10 },
@@ -621,7 +692,7 @@ const s = StyleSheet.create({
   actionText: { fontFamily: 'DMSans_700Bold', fontSize: 12 },
   field: { gap: 6, marginTop: 4 },
   fieldLabel: { fontFamily: 'DMSans_700Bold', fontSize: 11, marginTop: 3 },
-  input: { borderWidth: 1, borderRadius: 9, paddingHorizontal: 11, height: 44, fontFamily: 'DMSans_400Regular', fontSize: 13 },
+  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, minHeight: 48, fontFamily: 'DMSans_400Regular', fontSize: 16 },
   twoColumns: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   half: { width: '48%', flexGrow: 1 },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },

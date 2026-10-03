@@ -13,10 +13,13 @@ import React, {
 import { AppState, Platform } from 'react-native';
 import {
   persistFitnessJournalTombstones,
+  deletedFitnessJournalKeys,
   syncFitnessJournal,
   type PendingDeletion,
 } from './fitnessJournalSync';
 import { updateGymBuddyWidget } from '@/widgets/updateGymBuddyWidget';
+import { mergeJournalBackup,remapDeletedBackupIds } from '@/lib/premiumLogic';
+import { useWidgetTargets } from '@/providers/PremiumProvider';
 
 export type FitnessProfile = {
   name: string;
@@ -89,6 +92,7 @@ type Targets = Pick<
 
 type FitnessContextValue = FitnessState & {
   ready: boolean;
+  canSave: boolean;
   error: string;
   journalSyncStatus: 'unpaired' | 'syncing' | 'synced' | 'error';
   journalSyncError: string;
@@ -97,6 +101,11 @@ type FitnessContextValue = FitnessState & {
   syncJournal(): Promise<void>;
   addMeal(input: Omit<Meal, 'id' | 'date' | 'time'>): Promise<boolean>;
   removeMeal(id: string): Promise<boolean>;
+  editMeal(id: string, input: Omit<Meal, 'id' | 'date' | 'time'>): Promise<boolean>;
+  undoAvailable: boolean;
+  undoLastDeletion(): Promise<boolean>;
+  importBackup(value: unknown, restoreProfile?: boolean): Promise<boolean>;
+  getSnapshot():FitnessState;
   addSet(input: Pick<WorkoutSet, 'exercise' | 'weight' | 'reps' | 'setType'>): Promise<boolean>;
   removeSet(id: string): Promise<boolean>;
   finishWorkout(options?: { since?: number; sessionId?: string }): Promise<boolean>;
@@ -347,7 +356,22 @@ function formatTime(date: Date): string {
   return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(date);
 }
 
+export function validateFitnessBackup(value: unknown): FitnessState {
+  const parsed = validateState(value);
+  if (parsed.hadInvalidData) throw new Error('The journal backup contains invalid records. Nothing was imported.');
+  for (const collection of [parsed.state.meals, parsed.state.sets, parsed.state.completedWorkouts]) {
+    if (new Set(collection.map(x => x.id)).size !== collection.length) throw new Error('The journal backup has duplicate identifiers.');
+  }
+  const original=value as {completedWorkouts:unknown[]};
+  if(original.completedWorkouts.length!==parsed.state.completedWorkouts.length)throw new Error('Backup contains an empty or invalid completed workout.');
+  const members=parsed.state.completedWorkouts.flatMap(w=>w.setIds);
+  if(new Set(members).size!==members.length)throw new Error('A set belongs to multiple completed workouts in this backup.');
+  if(new Set(parsed.state.weights.map(w=>w.date)).size!==parsed.state.weights.length)throw new Error('The backup contains conflicting weights for the same date.');
+  return parsed.state;
+}
+
 export function FitnessProvider({ children }: { children: ReactNode }) {
+  const widgetTargets=useWidgetTargets();
   const [state, setState] = useState<FitnessState>(EMPTY_STATE);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
@@ -358,6 +382,9 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
   const movementStepsRef = useRef<number | null>(null);
   const [journalSyncStatus, setJournalSyncStatus] = useState<FitnessContextValue['journalSyncStatus']>('unpaired');
   const [journalSyncError, setJournalSyncError] = useState('');
+  const [undoAvailable, setUndoAvailable] = useState(false);
+  const undoRef = useRef<{ meal?: Meal; set?: WorkoutSet; workouts?: CompletedWorkout[] } | null>(null);
+  const undoInFlight=useRef(false);
 
   const runJournalSync = useCallback((pairKey: string, deletedRecords: PendingDeletion[] = []) => {
     if (!pairKey || !hydratedRef.current) return Promise.resolve();
@@ -409,11 +436,11 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
         meals: stateRef.current.meals,
         sets: stateRef.current.sets,
         water: stateRef.current.water,
-        profile: stateRef.current.profile,
+        profile: {...stateRef.current.profile,...widgetTargets},
         movementSteps: movementStepsRef.current,
       });
     }
-  }, [ready]);
+  }, [ready,widgetTargets]);
 
   useEffect(() => {
     if (!ready || !hydratedRef.current) return;
@@ -421,10 +448,10 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
       meals: state.meals,
       sets: state.sets,
       water: state.water,
-      profile: state.profile,
+      profile: {...state.profile,...widgetTargets},
       movementSteps: movementStepsRef.current,
     });
-  }, [ready, state]);
+  }, [ready, state,widgetTargets]);
 
   useEffect(() => {
     let mounted = true;
@@ -476,7 +503,7 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
     return () => listener.remove();
   }, [runJournalSync]);
 
-  const commit = useCallback((update: (current: FitnessState) => MutationResult): Promise<boolean> => {
+  const commit = useCallback((update: (current: FitnessState) => MutationResult|Promise<MutationResult>): Promise<boolean> => {
     if (!hydratedRef.current) {
       setError('Fitness data is not ready to save yet; existing storage has not been changed.');
       return Promise.resolve(false);
@@ -485,7 +512,7 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
     const operation = persistQueueRef.current.then(async () => {
       try {
         const current = stateRef.current;
-        const result = update(current);
+        const result = await update(current);
         if ('error' in result) {
           setError(result.error);
           return false;
@@ -560,9 +587,20 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
     if (typeof id !== 'string' || !id) {
       return reject('A valid meal entry is required to remove it.');
     }
+    const removed = stateRef.current.meals.find(x => x.id === id);
     return commit((current) => ({
       state: { ...current, meals: current.meals.filter((meal) => meal.id !== id) },
-    }));
+    })).then(ok => { if (ok && removed) { undoRef.current = { meal: removed }; setUndoAvailable(true); } return ok; });
+  }, [commit, reject]);
+
+  const editMeal = useCallback((id: string, input: Omit<Meal, 'id' | 'date' | 'time'>): Promise<boolean> => {
+    const name = cleanText(input.name, 120);
+    if (!name || !MEAL_TYPES.includes(input.meal) || !isNumber(input.calories, .01, 10000) ||
+      !['protein','carbs','fat'].every(k => isNumber(input[k as 'protein'], 0, 1000))) return reject('Enter valid meal nutrition before saving.');
+    return commit(current => {
+      if (!current.meals.some(m => m.id === id)) return { error: 'This meal no longer exists.' };
+      return { state: { ...current, meals: current.meals.map(m => m.id === id ? { ...m, ...input, name } : m) } };
+    });
   }, [commit, reject]);
 
   const addSet = useCallback((input: Pick<WorkoutSet, 'exercise' | 'weight' | 'reps' | 'setType'>): Promise<boolean> => {
@@ -589,6 +627,8 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
     if (typeof id !== 'string' || !id) {
       return reject('A valid strength set is required to remove it.');
     }
+    const removed = stateRef.current.sets.find(x => x.id === id);
+    const workouts = stateRef.current.completedWorkouts.filter(w => w.setIds.includes(id));
     return commit((current) => ({
       state: {
         ...current,
@@ -597,7 +637,38 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
           .map((workout) => ({ ...workout, setIds: workout.setIds.filter((setId) => setId !== id) }))
           .filter((workout) => workout.setIds.length > 0),
       },
-    }));
+    })).then(ok => { if (ok && removed) { undoRef.current = { set: removed, workouts }; setUndoAvailable(true); } return ok; });
+  }, [commit, reject]);
+
+  const undoLastDeletion = useCallback(async () => {
+    const undo = undoRef.current;
+    if (!undo) return reject('There is no deletion to undo.');
+    if(undoInFlight.current)return Promise.resolve(false);
+    undoInFlight.current=true;
+    const restoredId = makeId(); // Fresh IDs avoid resurrecting a synced deletion tombstone.
+    const ok = await commit(current => {
+      if (undo.meal) return { state: { ...current, meals: [{ ...undo.meal, id: restoredId }, ...current.meals] } };
+      if (!undo.set) return { error: 'Nothing to restore.' };
+      const completedWorkouts = [...current.completedWorkouts];
+      for (const old of undo.workouts ?? []) {
+        const index = completedWorkouts.findIndex(w => w.id === old.id);
+        if (index >= 0) completedWorkouts[index] = { ...completedWorkouts[index], setIds: [...new Set([...completedWorkouts[index].setIds, restoredId])] };
+        else completedWorkouts.push({ ...old, id: makeId(), setIds: [restoredId, ...old.setIds.filter(id => current.sets.some(s => s.id === id))] });
+      }
+      return { state: { ...current, sets: [{ ...undo.set, id: restoredId }, ...current.sets], completedWorkouts } };
+    });
+    if (ok && undoRef.current === undo) { undoRef.current = null; setUndoAvailable(false); }
+    undoInFlight.current=false;
+    return ok;
+  }, [commit, reject]);
+
+  const importBackup = useCallback((value: unknown, restoreProfile = false): Promise<boolean> => {
+    let incoming: FitnessState;
+    try { incoming = validateFitnessBackup(value); } catch (e) { return reject(errorDetails(e)); }
+    return commit(async current => {
+      const safe=pairKeyRef.current?remapDeletedBackupIds(incoming,await deletedFitnessJournalKeys(pairKeyRef.current)):incoming;
+      return {state:mergeJournalBackup(current,safe,restoreProfile)};
+    });
   }, [commit, reject]);
 
   const finishWorkout = useCallback((options?: { since?: number; sessionId?: string }): Promise<boolean> => {
@@ -709,6 +780,7 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
   const value = useMemo<FitnessContextValue>(() => ({
     ...state,
     ready,
+    canSave:hydratedRef.current,
     error,
     journalSyncStatus,
     journalSyncError,
@@ -717,6 +789,11 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
     syncJournal,
     addMeal,
     removeMeal,
+    editMeal,
+    undoAvailable,
+    undoLastDeletion,
+    importBackup,
+    getSnapshot:()=>{if(!hydratedRef.current)throw new Error('Journal data is not ready to export.');return stateRef.current;},
     addSet,
     removeSet,
     finishWorkout,
@@ -737,6 +814,10 @@ export function FitnessProvider({ children }: { children: ReactNode }) {
     syncJournal,
     addMeal,
     removeMeal,
+    editMeal,
+    undoAvailable,
+    undoLastDeletion,
+    importBackup,
     addSet,
     removeSet,
     finishWorkout,

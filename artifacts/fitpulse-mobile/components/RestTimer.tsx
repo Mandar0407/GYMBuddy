@@ -3,20 +3,47 @@ import { AppState, Modal, Pressable, StyleSheet, Text, View } from 'react-native
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
+import { usePremium } from '@/providers/PremiumProvider';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const REST_SECONDS = 90;
 
 const formatTime = (seconds: number) =>
   `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 
-export default function RestTimer({ startKey }: { startKey: number }) {
+export default function RestTimer({ startKey, storageId='free' }: { startKey: number; storageId?: string }) {
   const colors = useColors();
+  const p=usePremium();
+  const reduced=useReducedMotion();
   const insets = useSafeAreaInsets();
   const [visible, setVisible] = useState(false);
   const [remaining, setRemaining] = useState(REST_SECONDS);
   const [running, setRunning] = useState(false);
   const deadlineRef = useRef(0);
   const lastStartKeyRef = useRef(0);
+  const [total,setTotal]=useState(REST_SECONDS);
+  const [loaded,setLoaded]=useState(false);
+  const [saveError,setSaveError]=useState('');
+  useEffect(()=>{
+    let alive=true;
+    AsyncStorage.getItem(`@fitpulse/mobile/rest/${storageId}`).then(raw=>{
+      if(!alive||!raw||lastStartKeyRef.current>0)return;
+      const v=JSON.parse(raw);
+      if(typeof v.visible!=='boolean'||typeof v.running!=='boolean'||!Number.isFinite(v.deadline)||!Number.isFinite(v.remaining)||v.remaining<0||v.remaining>3600||!Number.isFinite(v.total)||v.total<1||v.total>3600)throw new Error('Invalid timer draft');
+      if(v.visible){
+        const left=v.running?Math.max(0,Math.ceil((v.deadline-Date.now())/1000)):v.remaining;
+        setRemaining(left);setTotal(v.total);deadlineRef.current=v.deadline;setRunning(v.running&&left>0);setVisible(true);
+      }
+    }).catch(()=>{if(alive)setSaveError('Rest timer draft could not load; journal records were kept.');}).finally(()=>{if(alive)setLoaded(true);});
+    return()=>{alive=false;};
+  },[storageId]);
+  const pausedRemaining=running?null:remaining;
+  useEffect(()=>{
+    if(!loaded)return;
+    void AsyncStorage.setItem(`@fitpulse/mobile/rest/${storageId}`,JSON.stringify({visible,running,deadline:deadlineRef.current,remaining,total}))
+      .catch(()=>setSaveError('Timer draft could not save. Keep the app open to retain the countdown.'));
+  },[loaded,visible,running,pausedRemaining,total,storageId]);
 
   useEffect(() => {
     if (startKey <= 0) {
@@ -26,8 +53,10 @@ export default function RestTimer({ startKey }: { startKey: number }) {
     if (startKey <= lastStartKeyRef.current) return;
 
     lastStartKeyRef.current = startKey;
-    setRemaining(REST_SECONDS);
-    deadlineRef.current = Date.now() + REST_SECONDS * 1000;
+    const seconds=p.settings.restSeconds;
+    setTotal(seconds);
+    setRemaining(seconds);
+    deadlineRef.current = Date.now() + seconds * 1000;
     setRunning(true);
     setVisible(true);
   }, [startKey]);
@@ -69,13 +98,22 @@ export default function RestTimer({ startKey }: { startKey: number }) {
   };
 
   const complete = remaining === 0;
-  const progress = Math.max(0, Math.min(1, (REST_SECONDS - remaining) / REST_SECONDS));
+  const progress = Math.max(0, Math.min(1, (total - remaining) / total));
+  const adjust=(extra:number)=>{
+    const now=running?Math.max(0,Math.ceil((deadlineRef.current-Date.now())/1000)):remaining;
+    const next=Math.min(3600,now+extra);setRemaining(next);setTotal(t=>Math.min(3600,t+next-now));
+    if(running)deadlineRef.current=Date.now()+next*1000;
+  };
+  const preset=(seconds:number)=>{
+    setTotal(seconds);setRemaining(seconds);deadlineRef.current=Date.now()+seconds*1000;setRunning(true);
+    void p.update(s=>({...s,settings:{...s.settings,restSeconds:seconds}}));
+  };
 
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType={reduced?'none':'fade'}
       statusBarTranslucent
       onRequestClose={dismiss}
     >
@@ -126,6 +164,15 @@ export default function RestTimer({ startKey }: { startKey: number }) {
           <View style={[styles.progressTrack, { backgroundColor: colors.muted }]}>
             <View style={[styles.progressFill, { width: `${progress * 100}%`, backgroundColor: colors.primary }]} />
           </View>
+          <View style={[styles.actions,{flexWrap:'wrap'}]}>
+            {[60,90,120,180].map(seconds=><Pressable key={seconds} accessibilityRole="button" accessibilityLabel={`Set rest to ${seconds} seconds`} testID={`rest-preset-${seconds}`} onPress={()=>preset(seconds)}
+              style={[styles.secondaryAction,{minWidth:62,flex:1,backgroundColor:colors.secondary}]}><Text style={[styles.secondaryActionText,{color:colors.secondaryForeground}]}>{seconds}s</Text></Pressable>)}
+          </View>
+          <View style={styles.actions}>
+            {[15,30].map(seconds=><Pressable key={seconds} accessibilityRole="button" accessibilityLabel={`Extend rest by ${seconds} seconds`} testID={`extend-rest-${seconds}`} onPress={()=>adjust(seconds)}
+              style={[styles.secondaryAction,{flex:1,backgroundColor:colors.secondary}]}><Text style={[styles.secondaryActionText,{color:colors.secondaryForeground}]}>+{seconds}s</Text></Pressable>)}
+          </View>
+          {!!saveError&&<Text style={[styles.description,{color:colors.destructive}]}>{saveError}</Text>}
 
           <View style={styles.actions}>
             {complete ? (

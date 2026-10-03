@@ -4,6 +4,7 @@ import { Alert, AppState, Modal, Platform, Pressable, StyleSheet, Text, TextInpu
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 type Settings = { sets: number; work: number; rest: number; skipLastRest: boolean };
 type SavedRoutine = Settings & { id: string; name: string };
@@ -144,6 +145,7 @@ function Stepper({ label, value, min, max, step, display, onChange, testID, colo
 
 export default function IntervalTimer() {
   const colors = useColors();
+  const reduced=useReducedMotion();
   const insets = useSafeAreaInsets();
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [selectedPreset, setSelectedPreset] = useState('hypertrophy');
@@ -439,7 +441,7 @@ export default function IntervalTimer() {
       </Pressable>
       <Text style={[styles.footerHint, { color: colors.mutedForeground }]}>Includes a five-second get-ready count.</Text>
 
-      <Modal visible={!!session} animationType="slide" presentationStyle="fullScreen" onRequestClose={endSession} statusBarTranslucent>
+      <Modal visible={!!session} animationType={reduced?'none':'slide'} presentationStyle="fullScreen" onRequestClose={endSession} statusBarTranslucent>
         <View style={[styles.modalScreen, { backgroundColor: colors.background, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}>
           {session && <>
             <View style={styles.modalHeader}>

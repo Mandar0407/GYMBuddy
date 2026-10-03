@@ -15,6 +15,37 @@ tags:
   - name: journal
     description: Conflict-safe paired journal synchronization
 paths:
+  /food/{barcode}:
+    get:
+      operationId: getFoodBarcode
+      tags: [nutrition]
+      parameters:
+        - in: path
+          name: barcode
+          required: true
+          schema: { type: string, pattern: '^[0-9]{8,14}$' }
+      responses:
+        "200":
+          description: Open Food Facts nutrition per 100 grams; user must review before saving.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [barcode, name, calories, protein, carbs, fat, source]
+                properties:
+                  barcode: { type: string }
+                  name: { type: string }
+                  calories: { type: number }
+                  protein: { type: number }
+                  carbs: { type: number }
+                  fat: { type: number }
+                  source: { type: string }
+        "404":
+          description: Product not found
+        "422":
+          description: Nutrition incomplete
+        "503":
+          description: Lookup unavailable
   /movement/accounts:
     post:
       operationId: createMovementAccount

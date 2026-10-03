@@ -12,6 +12,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useColors } from '@/hooks/useColors';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import type { FitnessProfile } from '@/providers/FitnessProvider';
 
 type ProfileForm = {
@@ -47,6 +48,7 @@ const validInteger = (value: string, min: number, max: number) =>
 
 export default function ProfileModal({ profile, visible, onClose, onSave, stepTargetManagedInMovement = false }: Props) {
   const colors = useColors();
+  const reduced=useReducedMotion();
   const insets = useSafeAreaInsets();
   const [form, setForm] = useState<ProfileForm>(() => ({
     name: profile.name,
@@ -166,7 +168,7 @@ export default function ProfileModal({ profile, visible, onClose, onSave, stepTa
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType={reduced?'none':'fade'}
       statusBarTranslucent
       onRequestClose={onClose}
     >

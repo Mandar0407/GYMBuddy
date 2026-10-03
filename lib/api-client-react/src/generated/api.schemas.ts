@@ -159,3 +159,13 @@ export interface HealthStatus {
   status: string;
 }
 
+export type GetFoodBarcode200 = {
+  barcode: string;
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  source: string;
+};
+

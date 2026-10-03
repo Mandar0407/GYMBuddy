@@ -8,6 +8,24 @@
 import * as zod from 'zod';
 
 
+export const getFoodBarcodePathBarcodeRegExp = new RegExp('^[0-9]{8,14}$');
+
+
+export const GetFoodBarcodeParams = zod.object({
+  "barcode": zod.coerce.string().regex(getFoodBarcodePathBarcodeRegExp)
+})
+
+export const GetFoodBarcodeResponse = zod.object({
+  "barcode": zod.string(),
+  "name": zod.string(),
+  "calories": zod.number(),
+  "protein": zod.number(),
+  "carbs": zod.number(),
+  "fat": zod.number(),
+  "source": zod.string()
+})
+
+
 export const CreateMovementAccountResponse = zod.object({
   "key": zod.string()
 })

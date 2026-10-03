@@ -32,12 +32,18 @@
               "displayName": "GYM Buddy Today",
               "description": "Today's logged nutrition, water, movement, and strength progress.",
               "ios": {
-                "supportedFamilies": ["systemSmall", "systemMedium"]
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium"
+                ]
               }
             }
           ]
         }
-      ]
+      ],
+      "expo-sharing",
+      ["expo-camera", { "cameraPermission": "GYM Buddy uses the camera only when you choose to scan a food barcode.", "recordAudioAndroid": false }],
+      ["expo-image-picker", { "photosPermission": "GYM Buddy accesses photos only when you choose a private progress photo.", "microphonePermission": false }]
     ],
     "experiments": {
       "typedRoutes": true,
