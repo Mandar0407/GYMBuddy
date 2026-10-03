@@ -14,3 +14,31 @@ mtime_ms = 1791034786179
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:f20fccba-b9f2-40ab-973f-ec0c4df86162/b7d4c30c-e9cb-4dad-9ef2-6f83a47c61ab/ed59dd4a-c9e4-4eb8-994f-1a779e1d0d71"
 storage_version_token = "1791034900459755"
 content_type = "image/png"
+
+[[outputs]]
+id = "vBSrFMKY1mdZbIveMTt4H"
+uri = "file://screenshots/gym-buddy-mobile-10-screenshots.zip"
+type = "unspecified"
+title = "GYM Buddy — All 10 screenshots"
+description = "Download 10 mobile-preview PNGs, each 1320 × 2868 pixels, plus capture notes. Expo web-preview captures, not native iPhone captures."
+logical_id = "3cc8da90-ddf9-4f0c-b9a3-ab80c1dd0db8"
+content_hash = "sha256:e837e3c429eb2e801c39f8a18287d0a20f7c18c81f0f3f67649f6416af0c9b1d"
+size = 1992853
+mtime_ms = 1791052141189
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:f20fccba-b9f2-40ab-973f-ec0c4df86162/3cc8da90-ddf9-4f0c-b9a3-ab80c1dd0db8/f17b1888-f340-45e9-ad3e-7be9541890e7"
+storage_version_token = "1791052151147656"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "H85ipr8ZXg0p-AAdIsIIv"
+uri = "file://screenshots/gym-buddy-mobile/contact-sheet.jpg"
+type = "image"
+title = "Preview all 10 screens"
+description = "Overview of Today, nutrition, recipes, strength, plate calculator, movement, insights, planning, calendar and day targets."
+logical_id = "88d1bacc-dc19-4408-900e-95bfbe4a92b3"
+content_hash = "sha256:98e87ed6c87e3cbcfa31a8f3778c85a5a22bf2ea703e8ffc490a232bf7b9775f"
+size = 313417
+mtime_ms = 1791052100621
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:f20fccba-b9f2-40ab-973f-ec0c4df86162/88d1bacc-dc19-4408-900e-95bfbe4a92b3/9e9519af-8944-49af-9d69-f3da5eba94d0"
+storage_version_token = "1791052152844587"
+content_type = "image/jpeg"
