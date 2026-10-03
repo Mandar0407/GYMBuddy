@@ -19,3 +19,4 @@
 - [Profile seed policy](profile-seed-policy.md) — use creator-supplied editable defaults rather than fictional sample personas; preserve customized saved values.
 - [Mobile feature preservation](mobile-feature-preservation.md) — premium visual polish must retain every existing mobile feature.
 - [Backup reconciliation](backup-reconciliation.md) — paired restores must respect deletion markers and remain idempotent; photos are opt-in portable data.
+- [Vite test cache isolation](vite-test-cache-isolation.md) — alternate test-loader configurations must not share the running preview's dependency cache.
