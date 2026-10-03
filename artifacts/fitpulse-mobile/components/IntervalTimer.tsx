@@ -1,3 +1,4 @@
+import { BrandMark } from '@/components/BrandMark';
 import React, { useEffect, useRef, useState } from 'react';
 import {usePageVisible}from'@/components/PersistentPage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -450,8 +451,8 @@ export default function IntervalTimer() {
           {session && <>
             <View style={styles.modalHeader}>
               <View style={styles.modalBrand}>
-                <Feather name="activity" size={18} color={colors.primary} />
-                <Text style={[styles.brandText, { color: colors.foreground }]}>GYM Buddy</Text>
+                <BrandMark size={24} tile={colors.primary} glyph={colors.primaryForeground} />
+                <Text accessibilityLabel="GYM Buddy" style={[styles.brandText, { color: colors.foreground }]}><Text style={{ letterSpacing: 1.2 }}>GYM</Text> <Text style={{ letterSpacing: -0.6 }}>Buddy</Text></Text>
                 <Text style={[styles.brandDivider, { color: colors.mutedForeground }]}>/ Strength</Text>
               </View>
               <Pressable accessibilityRole="button" accessibilityLabel="End session" testID="end-interval" onPress={endSession} hitSlop={10} style={styles.endButton}>

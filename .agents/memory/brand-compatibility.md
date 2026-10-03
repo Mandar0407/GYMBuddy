@@ -14,3 +14,9 @@ For name-and-logo requests, keep the existing interface palette and layouts unle
 **Why:** A rebrand request is not permission to alter the app's established visual design.
 
 **How to apply:** Scope future brand edits to the requested text, logo assets, and related metadata; ask before changing the broader interface.
+
+The logo should be visibly fitness-related, using imagery such as abs, barbells, weight plates or dumbbells rather than a generic letter mark.
+
+**Why:** The user explicitly said fitness imagery would match what the app is about.
+
+**How to apply:** Use this direction when revising the shared app and website identity, while keeping the name lettering readable at small sizes.

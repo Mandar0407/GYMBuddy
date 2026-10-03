@@ -1,3 +1,4 @@
+import { BrandMark } from './components/BrandMark';
 import { type CSSProperties, type FormEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from 'react';
 import {
   Activity,
@@ -963,8 +964,8 @@ function App() {
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`fp-brand${compact ? ' fp-brand-compact' : ''}`} data-testid="brand-gym-buddy">
-      <span className="fp-brand-mark"><Dumbbell size={compact ? 17 : 19} strokeWidth={2.5} /></span>
-      <span>GYM <span>Buddy</span></span>
+      <BrandMark size={compact ? 30 : 34} className="fp-brand-mark" />
+      <span className="fp-wordmark"><span className="fp-wm-gym">GYM</span> <span className="fp-wm-buddy">Buddy</span></span>
     </div>
   );
 }

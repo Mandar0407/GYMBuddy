@@ -1,3 +1,4 @@
+import { BrandMark } from './components/BrandMark';
 import { type CSSProperties, type FormEvent, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from 'react';
 import { boundedNumber, bounds, plainText } from './inputSafety';
 import {
@@ -283,7 +284,7 @@ export default function PremiumDashboard({
           <button type="button" onClick={() => onNavigate('workout')} data-testid="button-view-workout-details">View workout <ArrowRight size={15} /></button>
         </section>
 
-        <footer className="fp-footer"><span><Dumbbell size={14} /> GYM Buddy</span><span>Built around your life, not the other way around.</span></footer>
+        <footer className="fp-footer"><span style={{display:'inline-flex',alignItems:'center',gap:7}}><BrandMark size={16} /><span className="fp-wordmark"><span className="fp-wm-gym">GYM</span> <span className="fp-wm-buddy" style={{color:'inherit'}}>Buddy</span></span></span><span>Built around your life, not the other way around.</span></footer>
       </div>
       {mealDialogOpen && (
         <div className="fp-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setMealDialogOpen(false); }}>

@@ -2,5 +2,7 @@
 type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/fitpulse-dashboard/Current.tsx": () => import("../components/mockups/fitpulse-dashboard/Current.tsx"),
-  "./components/mockups/fitpulse-dashboard/Premium.tsx": () => import("../components/mockups/fitpulse-dashboard/Premium.tsx")
+  "./components/mockups/fitpulse-dashboard/Premium.tsx": () => import("../components/mockups/fitpulse-dashboard/Premium.tsx"),
+  "./components/mockups/gym-buddy-brand/Current.tsx": () => import("../components/mockups/gym-buddy-brand/Current.tsx"),
+  "./components/mockups/gym-buddy-brand/Refined.tsx": () => import("../components/mockups/gym-buddy-brand/Refined.tsx")
 };

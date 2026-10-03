@@ -1,3 +1,4 @@
+import { BrandMark } from '@/components/BrandMark';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, AppState, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet,
@@ -280,7 +281,7 @@ function MovementScreen({ embedded, onSummaryChange }: { embedded?: boolean; onS
       paddingTop: embedded ? 22 : Platform.OS === 'web' ? 67 : insets.top + 18,
       paddingBottom: Platform.OS === 'web' ? 40 : insets.bottom + 32,
     }]}>
-      {!embedded && <View style={styles.brand}><View style={[styles.brandMark, { backgroundColor: colors.primary }]}><MaterialCommunityIcons name="dumbbell" size={20} color={colors.primaryForeground} /></View><Text style={[styles.brandText, { color: colors.foreground }]}>GYM Buddy</Text><Text style={[styles.brandSide, { color: colors.mutedForeground }]}>MOVEMENT</Text></View>}
+      {!embedded && <View style={styles.brand}><BrandMark size={32} tile={colors.primary} glyph={colors.primaryForeground} /><Text accessibilityLabel="GYM Buddy" style={[styles.brandText, { color: colors.foreground }]}><Text style={{ letterSpacing: 1.8 }}>GYM</Text> <Text style={{ letterSpacing: -1 }}>Buddy</Text></Text><Text style={[styles.brandSide, { color: colors.mutedForeground }]}>MOVEMENT</Text></View>}
       <Text style={[styles.eyebrow, { color: colors.secondaryForeground }]}>MOVEMENT · TODAY</Text>
       <Text style={[styles.title, { color: colors.foreground }]}>Take the{'\n'}long way.</Text>
       <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Steps are a gentle vote for more energy.</Text>
@@ -467,7 +468,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 20, gap: 17, maxWidth: 600, width: '100%', alignSelf: 'center' },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 10 },
   brandMark: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  brandText: { fontSize: 21, fontFamily: 'DMSans_700Bold', letterSpacing: -1 },
+  brandText: { fontSize: 21, fontFamily: 'DMSans_700Bold', letterSpacing: 0 },
   brandSide: { marginLeft: 'auto', fontSize: 10, fontWeight: '700', letterSpacing: 2 },
   eyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 2 },
   title: { fontSize: 48, lineHeight: 51, letterSpacing: -2.4, fontFamily: 'DMSans_700Bold' },
