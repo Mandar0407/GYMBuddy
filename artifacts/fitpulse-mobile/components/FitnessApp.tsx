@@ -533,7 +533,7 @@ export default function FitnessApp({ movementSummary, movementScreen }: { moveme
   </View>:null;
   return <View style={[s.root, { backgroundColor: colors.background }]}>
     <View style={[s.header, { paddingTop: Platform.OS === 'web' ? 67 : insets.top + 10, backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-      <View style={s.brand}><BrandMark size={32} tile={colors.accent} glyph={colors.foreground} /><Text accessibilityLabel="GYM Buddy" style={[s.brandText, { color: colors.foreground }]}><Text style={{ fontFamily: 'DMSans_700Bold', letterSpacing: 1.8 }}>GYM</Text> <Text style={{ color: colors.secondaryForeground, letterSpacing: -1 }}>Buddy</Text></Text></View>
+      <View style={s.brand}><BrandMark size={40} tile={colors.accent} glyph={colors.foreground} /><Text accessibilityLabel="GYM Buddy" style={[s.brandText, { color: colors.foreground }]}><Text style={{ fontFamily: 'DMSans_700Bold', letterSpacing: 1.8 }}>GYM</Text> <Text style={{ color: colors.secondaryForeground, letterSpacing: -1 }}>Buddy</Text></Text></View>
       <Pressable testID="open-menu" accessibilityRole="button" accessibilityLabel="Open menu" onPress={() => { tap(); setMenu(v => !v); }} style={[s.menuButton, { borderColor: colors.border, backgroundColor: colors.card }]}><Feather name={menu ? 'x' : 'user'} size={19} color={colors.foreground} /></Pressable>
     </View>
     {menu && <View style={[s.menu, { top: (Platform.OS === 'web' ? 67 : insets.top + 10) + 48, backgroundColor: colors.card, borderColor: colors.border }]}>

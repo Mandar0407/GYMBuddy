@@ -964,7 +964,7 @@ function App() {
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`fp-brand${compact ? ' fp-brand-compact' : ''}`} data-testid="brand-gym-buddy">
-      <BrandMark size={compact ? 30 : 34} className="fp-brand-mark" />
+      <BrandMark size={compact ? 38 : 34} className="fp-brand-mark" />
       <span className="fp-wordmark"><span className="fp-wm-gym">GYM</span> <span className="fp-wm-buddy">Buddy</span></span>
     </div>
   );

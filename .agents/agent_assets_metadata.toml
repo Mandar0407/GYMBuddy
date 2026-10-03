@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "OhUglpYyuW1V5MBscAVVE"
+uri = "file://artifacts/fitpulse-mobile/assets/images/gym-buddy-icon.png"
+type = "image"
+title = "GYM Buddy — Athlete & Barbell Logo"
+description = "1024px app icon featuring the muscular athlete, defined abs, loaded barbell and shield emblem in your existing colours."
+logical_id = "b7d4c30c-e9cb-4dad-9ef2-6f83a47c61ab"
+content_hash = "sha256:3789177a8b3b28bc952c840f19fa13cdd44fe6bc91a3054f767cd28568e64a0b"
+size = 32529
+mtime_ms = 1791034786179
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:f20fccba-b9f2-40ab-973f-ec0c4df86162/b7d4c30c-e9cb-4dad-9ef2-6f83a47c61ab/ed59dd4a-c9e4-4eb8-994f-1a779e1d0d71"
+storage_version_token = "1791034900459755"
+content_type = "image/png"

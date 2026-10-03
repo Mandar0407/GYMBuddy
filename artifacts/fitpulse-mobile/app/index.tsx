@@ -281,7 +281,7 @@ function MovementScreen({ embedded, onSummaryChange }: { embedded?: boolean; onS
       paddingTop: embedded ? 22 : Platform.OS === 'web' ? 67 : insets.top + 18,
       paddingBottom: Platform.OS === 'web' ? 40 : insets.bottom + 32,
     }]}>
-      {!embedded && <View style={styles.brand}><BrandMark size={32} tile={colors.primary} glyph={colors.primaryForeground} /><Text accessibilityLabel="GYM Buddy" style={[styles.brandText, { color: colors.foreground }]}><Text style={{ letterSpacing: 1.8 }}>GYM</Text> <Text style={{ letterSpacing: -1 }}>Buddy</Text></Text><Text style={[styles.brandSide, { color: colors.mutedForeground }]}>MOVEMENT</Text></View>}
+      {!embedded && <View style={styles.brand}><BrandMark size={40} tile={colors.primary} glyph={colors.primaryForeground} /><Text accessibilityLabel="GYM Buddy" style={[styles.brandText, { color: colors.foreground }]}><Text style={{ letterSpacing: 1.8 }}>GYM</Text> <Text style={{ letterSpacing: -1 }}>Buddy</Text></Text><Text style={[styles.brandSide, { color: colors.mutedForeground }]}>MOVEMENT</Text></View>}
       <Text style={[styles.eyebrow, { color: colors.secondaryForeground }]}>MOVEMENT · TODAY</Text>
       <Text style={[styles.title, { color: colors.foreground }]}>Take the{'\n'}long way.</Text>
       <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Steps are a gentle vote for more energy.</Text>

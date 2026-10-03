@@ -15,8 +15,8 @@ For name-and-logo requests, keep the existing interface palette and layouts unle
 
 **How to apply:** Scope future brand edits to the requested text, logo assets, and related metadata; ask before changing the broader interface.
 
-The logo should be visibly fitness-related, using imagery such as abs, barbells, weight plates or dumbbells rather than a generic letter mark.
+The logo direction is a muscular athlete with defined abs holding a loaded barbell across the shoulders, framed by a shield-style emblem—not just a letter mark or equipment-only icon.
 
-**Why:** The user explicitly said fitness imagery would match what the app is about.
+**Why:** The user asked for fitness imagery, then supplied an athlete-and-barbell shield illustration to clarify the intended look.
 
-**How to apply:** Use this direction when revising the shared app and website identity, while keeping the name lettering readable at small sizes.
+**How to apply:** Use the supplied mascot direction when revising the shared app and website identity, while keeping the name lettering readable at small sizes and preserving the established palette.
